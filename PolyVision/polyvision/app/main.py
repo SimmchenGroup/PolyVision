@@ -625,9 +625,11 @@ class ImagePreview(QMainWindow):
                  enable_fusion=False, local_model_path=None, global_model_path=None,
                  fusion_weights=(0.3, 0.5, 0.2),
                  microplastic_classes=None,
-                 yolo_detector: YoloDetector | None = None):
+                 yolo_detector: YoloDetector | None = None,
+                 dataset_root=None):
         super().__init__(parent)
         self.object_class_id = object_class_id
+        self.dataset_root = Path(dataset_root) if dataset_root is not None else None
         self.setWindowTitle("Interactive Preview")
         self.setWindowState(Qt.WindowMaximized)
 
