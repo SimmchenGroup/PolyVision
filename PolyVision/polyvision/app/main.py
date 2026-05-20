@@ -12,7 +12,7 @@ import ctypes  # for screen size
 import cv2
 import numpy as np
 from skimage import measure, morphology
-from skimage.morphology import disk, binary_opening
+from skimage.morphology import disk
 from scipy.ndimage import binary_fill_holes
 from shutil import move
 from ultralytics import YOLO
@@ -169,8 +169,8 @@ def threshold_image(
         thr_bool = thr > 0
 
         # Morphology
-        thr_bool = binary_opening(thr_bool, disk(1))
-        thr_bool = morphology.remove_small_objects(thr_bool, min_size=min_obj_size)
+        thr_bool = morphology.opening(thr_bool, disk(1))
+        thr_bool = morphology.remove_small_objects(thr_bool, max_size=min_obj_size)
 
         # Check if any objects remain
         if fallback_to_adaptive and not thr_bool.any():
@@ -184,8 +184,8 @@ def threshold_image(
         threshold_used = manual_thresh
 
         thr_bool = thr > 0
-        thr_bool = binary_opening(thr_bool, disk(1))
-        thr_bool = morphology.remove_small_objects(thr_bool, min_size=min_obj_size)
+        thr_bool = morphology.opening(thr_bool, disk(1))
+        thr_bool = morphology.remove_small_objects(thr_bool, max_size=min_obj_size)
 
     if method == "adaptive":
         thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
@@ -200,8 +200,8 @@ def threshold_image(
 
         # Morphology
         thr_bool = thr > 0
-        thr_bool = binary_opening(thr_bool, disk(1))
-        thr_bool = morphology.remove_small_objects(thr_bool, min_size=min_obj_size)
+        thr_bool = morphology.opening(thr_bool, disk(1))
+        thr_bool = morphology.remove_small_objects(thr_bool, max_size=min_obj_size)
 
     # Fill holes
     thr_bool = binary_fill_holes(thr_bool)
@@ -2011,9 +2011,9 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Dataset Reviewer --------------------
     def _open_dataset_reviewer(self):
-        dataset_root = self.dataset_root
+        dataset_root = getattr(self, "dataset_root", None)
         if dataset_root is None:
-            # Fall back to sibling of output_root
+            # Fall back to sibling of output_root (data/complete/ lives next to the class folder)
             dataset_root = self.output_root.parent
         if not dataset_root.exists():
             from PyQt5.QtWidgets import QMessageBox
