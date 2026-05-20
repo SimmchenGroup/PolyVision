@@ -35,6 +35,7 @@ from polyvision.ml.global_classifier import GlobalImageClassifier
 from configs.load import load_json, load_microplastic_classes
 from polyvision.ml.yolo_detector import YoloDetector
 import polyvision.core.db as db
+from polyvision.app.gui.dataset_reviewer import DatasetReviewer
 
 def load_microplastic_classes(config: dict) -> list[tuple[int, str]]:
     """
@@ -768,6 +769,11 @@ class ImagePreview(QMainWindow):
         self.fusion_checkbox.setEnabled(False)  # enabled after models load
         self.fusion_checkbox.stateChanged.connect(self.on_fusion_toggled)
         self.controls_layout.addWidget(self.fusion_checkbox)
+
+        # --- Review Dataset button ---
+        self.review_btn = QPushButton("Review Dataset")
+        self.review_btn.clicked.connect(self._open_dataset_reviewer)
+        self.controls_layout.addWidget(self.review_btn)
 
         self.controls_layout.addStretch()
 
@@ -2002,6 +2008,24 @@ class ImagePreview(QMainWindow):
         norm_h = height / H
 
         return np.array([x_center, y_center, norm_w, norm_h])
+
+    # -------------------- Dataset Reviewer --------------------
+    def _open_dataset_reviewer(self):
+        dataset_root = self.dataset_root
+        if dataset_root is None:
+            # Fall back to sibling of output_root
+            dataset_root = self.output_root.parent
+        if not dataset_root.exists():
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Dataset not found",
+                                f"Could not locate dataset root:\n{dataset_root}")
+            return
+        self._reviewer = DatasetReviewer(
+            dataset_root=dataset_root,
+            class_names=self.class_definitions,
+            parent=None,
+        )
+        self._reviewer.show()
 
     # -------------------- Keyboard navigation --------------------
     def keyPressEvent(self, event):
