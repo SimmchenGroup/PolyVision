@@ -32,7 +32,7 @@ from polyvision.core.image_io import ensure_8bit, load_as_gray
 
 class _DrawableView(QGraphicsView):
     rectCreated = pyqtSignal(tuple)   # (min_r, min_c, max_r, max_c)
-    bboxClicked = pyqtSignal(tuple)
+    bboxClicked = pyqtSignal(int)     # index into self._boxes
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -411,8 +411,9 @@ class DatasetReviewer(QMainWindow):
         self._render()
         self._set_status(f"Box added. {len(self._boxes)} box(es). Save with Ctrl+S.")
 
-    def _on_bbox_clicked(self, idx: int):
+    def _on_bbox_clicked(self, idx):
         """Delete-on-click: idx stored in item.data(0) is the box index."""
+        idx = int(idx)
         if 0 <= idx < len(self._boxes):
             self._boxes.pop(idx)
             self._selected_idx = None

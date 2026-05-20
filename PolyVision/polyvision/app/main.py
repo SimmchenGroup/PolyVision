@@ -2013,10 +2013,15 @@ class ImagePreview(QMainWindow):
     def _open_dataset_reviewer(self):
         dataset_root = getattr(self, "dataset_root", None)
         if dataset_root is None:
-            # Fall back to sibling of output_root (data/complete/ lives next to the class folder)
-            dataset_root = self.output_root.parent
+            # Try to resolve from config
+            try:
+                repo_root = find_repo_root(Path(__file__))
+                cfg = load_json(repo_root / "configs" / "config.json")
+                dr = cfg.get("paths", {}).get("dataset_root", "data/complete")
+                dataset_root = resolve_repo_path(repo_root, dr)
+            except Exception:
+                dataset_root = self.output_root.parent
         if not dataset_root.exists():
-            from PyQt5.QtWidgets import QMessageBox
             QMessageBox.warning(self, "Dataset not found",
                                 f"Could not locate dataset root:\n{dataset_root}")
             return
@@ -2645,6 +2650,12 @@ if __name__ == "__main__":
 
     app.setStyleSheet(style)
 
+    # Resolve dataset root (data/complete) from config for the Dataset Reviewer
+    dataset_root = resolve_repo_path(
+        repo_root,
+        config.get("paths", {}).get("dataset_root", "data/complete"),
+    )
+
     # 5️⃣ Launch interactive preview directly
     previewer = ImagePreview(
         img_paths=img_list,
@@ -2658,6 +2669,7 @@ if __name__ == "__main__":
         fusion_weights=tuple(config["fusion"]["weights"]),
         microplastic_classes=microplastic_classes,
         yolo_detector=yolo_detector,
+        dataset_root=dataset_root,
     )
     previewer.show()
 
