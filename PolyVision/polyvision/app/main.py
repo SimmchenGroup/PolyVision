@@ -2579,15 +2579,15 @@ if __name__ == "__main__":
 
     # 1 Input folder containing TIFF images
     input_dir = Path(
-        r"C:\Users\joshk\OneDrive\Desktop\raw\testset\ps1_et")
+        r"C:\Users\joshk\OneDrive\Desktop\raw\nylon\2")
     exts = {".tif", ".tiff", ".png", ".jpg", ".jpeg"}
     img_list = sorted([p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in exts])
     if not img_list:
         print(f"No image files found in {input_dir} (expected .tif/.tiff/.png/.jpg/.jpeg)")
         sys.exit(1)
 
-    output_root = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\testset\ps1_et\ps")
-    raw_out = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\testset\ps1_et\ps\whole_images")
+    output_root = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\nylon\2\ps")
+    raw_out = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\nylon\2\ps\whole_images")
     output_root.mkdir(parents=True, exist_ok=True)
     raw_out.mkdir(parents=True, exist_ok=True)
 

@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import cv2
+import numpy as np
+from skimage import morphology
+from skimage.morphology import disk, binary_opening
+from scipy.ndimage import binary_fill_holes
+
+
+def threshold_image(
+    img: np.ndarray,
+    method: str = "otsu",
+    object_bright: bool = True,
+    block_size: int = 21,
+    C: int = 5,
+    otsu_offset: int = 0,
+    min_obj_size: int = 25,
+    fallback_to_adaptive: bool = True,
+    manual_thresh: int = 128,
+) -> tuple[np.ndarray, int]:
+    if img.dtype != np.uint8:
+        img_8 = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    else:
+        img_8 = img.copy()
+
+    threshold_used = -1
+
+    if method == "otsu":
+        ret, _ = cv2.threshold(img_8, 0, 255, cv2.THRESH_OTSU)
+        otsu_thresh = int(ret) + otsu_offset
+        otsu_thresh = int(np.clip(otsu_thresh, 0, 255))
+
+        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
+        _, thr = cv2.threshold(img_8, otsu_thresh, 255, thr_type)
+        threshold_used = otsu_thresh
+
+        thr_bool = thr > 0
+        thr_bool = binary_opening(thr_bool, disk(1))
+        thr_bool = morphology.remove_small_objects(thr_bool, min_size=min_obj_size)
+
+        if fallback_to_adaptive and not thr_bool.any():
+            method = "adaptive"
+
+    if method == "manual":
+        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
+        _, thr = cv2.threshold(img_8, int(manual_thresh), 255, thr_type)
+        threshold_used = int(manual_thresh)
+
+        thr_bool = thr > 0
+        thr_bool = binary_opening(thr_bool, disk(1))
+        thr_bool = morphology.remove_small_objects(thr_bool, min_size=min_obj_size)
+
+    if method == "adaptive":
+        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
+        thr = cv2.adaptiveThreshold(
+            img_8, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            thr_type,
+            int(block_size),
+            int(C),
+        )
+        threshold_used = -1
+
+        thr_bool = thr > 0
+        thr_bool = binary_opening(thr_bool, disk(1))
+        thr_bool = morphology.remove_small_objects(thr_bool, min_size=min_obj_size)
+
+    thr_bool = binary_fill_holes(thr_bool)
+    return thr_bool.astype(np.uint8), threshold_used
+
+
+def fill_holes(binary: np.ndarray) -> np.ndarray:
+    filled = binary_fill_holes(binary.astype(bool))
+    return filled.astype(np.uint8)

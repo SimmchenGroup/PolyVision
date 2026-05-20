@@ -1,0 +1,4 @@
+[core]
+    remote = uni_storage
+['remote "uni_storage"']
+    url = J:\Science\Chemistry\RDMS\Juliane Simmchen group\Josh\2. Microplastic AI Project\working_dataset\dvc_cache
