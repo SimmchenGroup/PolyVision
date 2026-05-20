@@ -27,6 +27,12 @@ from PyQt5.QtGui import QKeySequence
 from polyvision.core.geometry import square_bbox
 from polyvision.core.image_io import ensure_8bit, load_as_gray
 
+try:
+    from PIL import Image as _PILImage
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
 
 # ── minimal drawable view (mirrors DrawableGraphicsView in main.py) ───────────
 
@@ -154,6 +160,35 @@ def _extract_crops(img_gray: np.ndarray, boxes: list[tuple], crop_folder: Path, 
         crop = img_gray[sr:er, sc:ec]
         out = crop_folder / f"{stem}_{idx:04d}.tif"
         cv2.imwrite(str(out), crop.astype(np.uint16) if crop.dtype == np.uint16 else crop)
+
+
+def _load_gray_robust(path: Path) -> np.ndarray:
+    """
+    Load a grayscale image, trying cv2 first then PIL as fallback.
+    PIL handles more TIFF variants and works around OneDrive cloud-file
+    issues that cause cv2.imread to return None.
+    Raises FileNotFoundError if neither reader can open the file.
+    """
+    # cv2 attempt
+    try:
+        img = load_as_gray(str(path))
+        return img
+    except (FileNotFoundError, Exception):
+        pass
+
+    # PIL fallback
+    if _PIL_AVAILABLE:
+        try:
+            pil_img = _PILImage.open(str(path)).convert("L")
+            return np.array(pil_img)
+        except Exception:
+            pass
+
+    raise FileNotFoundError(
+        f"Could not read image: {path}\n"
+        "If this file is stored in OneDrive cloud-only, right-click the "
+        "folder and select 'Always keep on this device', then retry."
+    )
 
 
 def _gray_to_pixmap(img: np.ndarray) -> QPixmap:
@@ -341,11 +376,20 @@ class DatasetReviewer(QMainWindow):
     def _load_image_and_labels(self):
         img_path = self._whole_image_path()
         if img_path is None:
-            self._set_status(f"Whole image not found for '{self._current_stem}'.")
+            self._set_status(
+                f"Whole image not found for '{self._current_stem}'.\n"
+                f"Expected: {self.dataset_root / self._current_class / 'whole_images' / (self._current_stem + '.tif')}"
+            )
             self._clear_view()
             return
 
-        img = load_as_gray(str(img_path))
+        try:
+            img = _load_gray_robust(img_path)
+        except FileNotFoundError as e:
+            self._set_status(str(e))
+            self._clear_view()
+            return
+
         self._img_gray = ensure_8bit(img)
         h, w = self._img_gray.shape
 
