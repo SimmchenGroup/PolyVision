@@ -62,9 +62,12 @@ class _DrawableView(QGraphicsView):
     def mousePressEvent(self, event):
         if self._delete_mode and event.button() == Qt.LeftButton:
             pos = self.mapToScene(event.pos())
-            for item in self.scene().items(pos):
+            # IntersectsItemBoundingRect makes the full box interior clickable.
+            # The default IntersectsItemShape only hits the outline for unfilled rects.
+            items = self.scene().items(pos, Qt.IntersectsItemBoundingRect)
+            for item in items:
                 if isinstance(item, QGraphicsRectItem) and item.data(0) is not None:
-                    self.bboxClicked.emit(item.data(0))
+                    self.bboxClicked.emit(int(item.data(0)))
                     event.accept()
                     return
             event.accept()
@@ -420,7 +423,8 @@ class DatasetReviewer(QMainWindow):
             pen = QPen(colour, 2)
             rect_item = QGraphicsRectItem(min_c, min_r, max_c - min_c, max_r - min_r)
             rect_item.setPen(pen)
-            rect_item.setBrush(QBrush(Qt.NoBrush))
+            # Transparent fill so the full interior registers for click hit-testing
+            rect_item.setBrush(QBrush(QColor(255, 255, 255, 0)))
             rect_item.setData(0, i)           # store index for click identification
             rect_item.setZValue(100)
             if i == self._selected_idx:
