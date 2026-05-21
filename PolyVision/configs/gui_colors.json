@@ -1,0 +1,11 @@
+{
+  "window_bg": "#2B2B3A",
+  "panel_bg": "#3C3F58",
+  "text_color": "#FFFFFF",
+  "button_bg": "#5C6370",
+  "button_text": "#FFFFFF",
+  "highlight": "#61AFEF",
+  "slider_bg": "#4B4F68",
+  "dropdown_bg": "#3C3F58",
+  "dropdown_text": "#FFFFFF"
+}
