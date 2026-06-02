@@ -277,8 +277,8 @@ def build_dataset_from_parent(
 build_dataset_from_parent(
     local_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
     global_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-    out_local_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv6",
-    out_global_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\globalv6",
+    out_local_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv7",
+    out_global_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\globalv7",
     split_ratios=(0.7, 0.2, 0.1),
     seed=123,
     include_sidecars=True,

@@ -13,7 +13,7 @@ import numpy as np
 # -----------------------
 # CONFIG
 # -----------------------
-DATA_YAML = Path(r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv6\data.yaml")
+DATA_YAML = Path(r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv7\data.yaml")
 IMAGES_DIR = DATA_YAML.parent / "images"
 
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}

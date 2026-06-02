@@ -211,4 +211,8 @@ CLAUDE.md
 HANDOFF.md
 JOURNAL.md
 
+*.jpg
+*.png
+*.jpeg
+
 data/

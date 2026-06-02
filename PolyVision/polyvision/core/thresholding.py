@@ -17,6 +17,7 @@ def threshold_image(
     min_obj_size: int = 25,
     fallback_to_adaptive: bool = True,
     manual_thresh: int = 128,
+    background_kernel_size: int = 51,
 ) -> tuple[np.ndarray, int]:
     if img.dtype != np.uint8:
         img_8 = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
@@ -26,12 +27,22 @@ def threshold_image(
     threshold_used = -1
 
     if method == "otsu":
-        ret, _ = cv2.threshold(img_8, 0, 255, cv2.THRESH_OTSU)
-        otsu_thresh = int(ret) + otsu_offset
-        otsu_thresh = int(np.clip(otsu_thresh, 0, 255))
-
-        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
-        _, thr = cv2.threshold(img_8, otsu_thresh, 255, thr_type)
+        if background_kernel_size > 0:
+            ksize = background_kernel_size | 1  # ensure odd
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ksize, ksize))
+            background = cv2.morphologyEx(img_8, cv2.MORPH_OPEN, kernel)
+            img_proc = cv2.subtract(background, img_8) if not object_bright else cv2.subtract(img_8, background)
+            img_proc = cv2.GaussianBlur(img_proc, (3, 3), 0)
+            ret, _ = cv2.threshold(img_proc, 0, 255, cv2.THRESH_OTSU)
+            otsu_thresh = int(ret) + otsu_offset
+            otsu_thresh = int(np.clip(otsu_thresh, 0, 255))
+            _, thr = cv2.threshold(img_proc, otsu_thresh, 255, cv2.THRESH_BINARY)
+        else:
+            ret, _ = cv2.threshold(img_8, 0, 255, cv2.THRESH_OTSU)
+            otsu_thresh = int(ret) + otsu_offset
+            otsu_thresh = int(np.clip(otsu_thresh, 0, 255))
+            thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
+            _, thr = cv2.threshold(img_8, otsu_thresh, 255, thr_type)
         threshold_used = otsu_thresh
 
         thr_bool = thr > 0

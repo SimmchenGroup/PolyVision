@@ -2194,7 +2194,7 @@ class ImagePreview(QMainWindow):
             self.min_area_slider.setValue(self.min_area_live)
             self.update_display()
 
-        elif key == Qt.Key_Delete:
+        elif key in (Qt.Key_Delete, Qt.Key_Backspace):
             if self.selected_bbox_key is not None:
                 self.on_delete_bbox()
             return
@@ -2525,7 +2525,7 @@ if __name__ == "__main__":
     # # ---------------------------------------------------------------------
     # # === MODELS ===
     # # ---------------------------------------------------------------------
-    YOLO_MODEL_PATH = r"C:/Users/joshk/OneDrive/Documents/GitHub_Strath/PolyVision/models/detect/YOLOv8.1/best.pt"
+    YOLO_MODEL_PATH = r"C:/Users/joshk/OneDrive/Documents/GitHub_Strath/PolyVision/models/detect/YOLOv8.7/best.pt"
     yolo_model = YOLO(YOLO_MODEL_PATH)
     ENABLE_FUSION = True  # Set to False to disable fusion
     LOCAL_MODEL_PATH = r"C:/Users/joshk/OneDrive/Documents/GitHub_Strath/PolyVision/models/local/EfficientNetB0/best_model.keras"
@@ -2581,15 +2581,15 @@ if __name__ == "__main__":
 
     # 1 Input folder containing TIFF images
     input_dir = Path(
-        r"C:\Users\joshk\OneDrive\Desktop\raw\nylon\2")
+        r"C:\Users\joshk\OneDrive\Desktop\raw\pla\pla1_et")
     exts = {".tif", ".tiff", ".png", ".jpg", ".jpeg"}
     img_list = sorted([p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in exts])
     if not img_list:
         print(f"No image files found in {input_dir} (expected .tif/.tiff/.png/.jpg/.jpeg)")
         sys.exit(1)
 
-    output_root = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\nylon\2\ps")
-    raw_out = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\nylon\2\ps\whole_images")
+    output_root = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\pla\pla1_et")
+    raw_out = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\pla\pla1_et\whole_images")
     output_root.mkdir(parents=True, exist_ok=True)
     raw_out.mkdir(parents=True, exist_ok=True)
 

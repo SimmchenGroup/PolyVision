@@ -183,17 +183,16 @@ def build_yolo_dataset_with_class_map(
 # Example usage
 build_yolo_dataset_with_class_map(
     parent_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-    out_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv4",
+    out_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv7",
     class_to_id={
         "nylon": 0,
         "pe": 1,
         "pet": 2,
-        "pla": 3,
-        "pmma": 4,
-        "pp": 5,
-        "ps": 6,
-        "pu": 7,
-        "pvc": 8,
+        "pmma": 3,
+        "pp": 4,
+        "ps": 5,
+        "pu": 6,
+        "pvc": 7,
     },
     val_split=0.2,
     seed=42,
