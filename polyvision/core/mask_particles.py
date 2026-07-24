@@ -88,7 +88,9 @@ def process_folder(input_dir, output_dir, flat_color=(127, 127, 127)):
 
 
 if __name__ == "__main__":
-    input_folder = r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv3\train\nylon\ny1_et_1_10X_001_tile_0_4"
-    output_folder = r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv3\train\nylon\ny1_et_1_10X_001_tile_0_4\test"
+    # Example: paint a flat background behind every crop in a folder.
+    # Edit the two paths for your setup.
+    input_folder = "data/example_crops"
+    output_folder = "data/example_crops/masked"
 
     process_folder(input_folder, output_folder)

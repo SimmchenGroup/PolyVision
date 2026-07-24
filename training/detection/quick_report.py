@@ -611,5 +611,5 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-# python detect\quick_report.py --data-yaml "C:\Users\joshk\OneDrive\Desktop\multiclass\v3\data.yaml" --out-dir detect\results\v3
-# python detect\quick_report.py --data-yaml "C:\Users\joshk\OneDrive\Desktop\multiclass\v2\data.yaml" --results-csv detect/runs/detect/train5/results.csv --out-dir detect\results\test
+# python detect\quick_report.py --data-yaml "path\to\runs\v3\data.yaml" --out-dir detect\results\v3
+# python detect\quick_report.py --data-yaml "path\to\runs\v2\data.yaml" --results-csv detect/runs/detect/train5/results.csv --out-dir detect\results\test

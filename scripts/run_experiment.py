@@ -27,8 +27,8 @@ def build_config(model_name: str = "inception", weights_path: str | None = None)
         training_type="microplastic",
         learning_rate=0.00001,
         base_dirs={
-            "microplastic": "/home/joshk/data/globalv7",  # native ext4 — avoids WSL2 9P stall
-            "whisky": r"C:\path\to\other_dataset",
+            "microplastic": "data/datasets/global",  # point at your crop/whole-image dataset root
+            "whisky": r"path/to/other_dataset",
         },
         microplastic_classes=["nylon", "pe", "pet", "pmma", "ps", "pp", "pu", "pvc"], # , "pet", "pmma", "ps", "pp", "pu", "pvc"
         whisky_classes=[],
@@ -81,7 +81,7 @@ def main():
                         help="Override config batch size. Default: 8 (stable baseline). Test: 16, 32.")
     parser.add_argument("--dataset-path", default=None,
                         help="Override dataset root (must contain train/ val/ test/ subfolders). "
-                             "e.g. /home/joshk/data/localv7")
+                             "e.g. data/datasets/local")
     parser.add_argument("--val-steps", type=int, default=None,
                         help="Cap validation batches per epoch. Useful for large datasets where "
                              "full val takes longer than training. e.g. 500")
@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
 
 # ------COMMANDS------
-# cd /mnt/c/Users/joshk/OneDrive/Documents/GitHub_Strath/PolyVision
+# cd path/to/PolyVision
 # python -m scripts.run_experiment --mode train --model inception --balance-mode none
 # python -m scripts.run_experiment --mode train --model efficient --balance-mode none
 # python -m scripts.run_experiment --mode train --model res --balance-mode none

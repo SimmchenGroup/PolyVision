@@ -180,23 +180,19 @@ def build_yolo_dataset_with_class_map(
             print("  ...")
 
 
-# Example usage
-build_yolo_dataset_with_class_map(
-    parent_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-    out_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv9",
-    class_to_id={
-        "nylon": 0,
-        "pe": 1,
-        "pet": 2,
-        "pla": 3,
-        "pmma": 4,
-        "pp": 5,
-        "ps": 6,
-        "pu": 7,
-        "pvc": 8,
-    },
-    val_split=0.2,
-    seed=42,
-    strict=False,  # set True if you want it to error on any missing file
-    jpg_quality=95,
-)
+if __name__ == "__main__":
+    # Example driver — edit the two roots for your setup.
+    #   parent_root: the curated dataset (data/complete/<class>/whole_images/...)
+    #   out_root:    where the assembled YOLO dataset is written
+    build_yolo_dataset_with_class_map(
+        parent_root="data/complete",
+        out_root="data/datasets/detect",
+        class_to_id={
+            "nylon": 0, "pe": 1, "pet": 2, "pla": 3, "pmma": 4,
+            "pp": 5, "ps": 6, "pu": 7, "pvc": 8,
+        },
+        val_split=0.2,
+        seed=42,
+        strict=False,  # set True to error on any missing file
+        jpg_quality=95,
+    )

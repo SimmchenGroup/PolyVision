@@ -3975,20 +3975,16 @@ if __name__ == "__main__":
     import sys
     from PyQt5.QtWidgets import QApplication
 
-    # # ---------------------------------------------------------------------
-    # # === MODELS ===
-    # # ---------------------------------------------------------------------
-    YOLO_MODEL_PATH = r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv9\detect_colab_runs\detect\detect_colab_ft\weights\best.pt"
-    yolo_model = YOLO(YOLO_MODEL_PATH)
-    ENABLE_FUSION = True  # Set to False to disable fusion
-    LOCAL_MODEL_PATH = r"C:/Users/joshk/OneDrive/Documents/GitHub_Strath/PolyVision/models/local/EfficientNetB0/best_model.keras"
-    GLOBAL_MODEL_PATH = r"C:/Users/joshk/OneDrive/Documents/GitHub_Strath/PolyVision/models/global/EfficientNetB0/best_model.keras"
-    FUSION_WEIGHTS = (0.3, 0.5, 0.2)  # (YOLO, Local, Global)
-    #
-    # # ---------------------------------------------------------------------
-
-    # Load configuration
+    # Load configuration first; model/data paths all come from configs/config.json.
     repo_root = find_repo_root(Path(__file__))
+
+    # Detector used by the module-level yolo_detect() helper. The path is resolved
+    # from config ("models.yolo"/"models.yolo_weights") relative to the repo root.
+    with open(repo_root / "configs" / "config.json", "r", encoding="utf-8") as _cf:
+        _models_cfg = json.load(_cf).get("models", {})
+    YOLO_MODEL_PATH = str(resolve_repo_path(
+        repo_root, _models_cfg.get("yolo") or _models_cfg.get("yolo_weights", "models/detect/best.pt")))
+    yolo_model = YOLO(YOLO_MODEL_PATH)
 
     with open(repo_root / "configs" / "config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -4032,17 +4028,21 @@ if __name__ == "__main__":
         imgsz=int(models_cfg.get("imgsz", 800)),
     )
 
-    # 1 Input folder containing TIFF images
-    input_dir = Path(
-        r"C:\Users\joshk\OneDrive\Desktop\raw\application_set\pristine_pet_uv_16weeks")
+    # Input / output folders are taken from configs/config.json ("paths" block),
+    # resolved relative to the repo root:
+    #   input_dir  = raw micrographs to annotate      (default: data/raw)
+    #   output_root = where crops + labels are written (default: data/complete/<class>)
+    #   raw_out     = where the whole image is moved   (default: <output_root>/whole_images)
+    paths_cfg = config.get("paths", {})
+    input_dir = resolve_repo_path(repo_root, paths_cfg.get("input_dir", "data/raw"))
     exts = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
-    img_list = triage_sort(sorted([p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in exts]))
+    img_list = triage_sort(sorted([p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in exts])) if input_dir.exists() else []
     if not img_list:
         print(f"No image files found in {input_dir} (expected .tif/.tiff/.png/.jpg/.jpeg/.bmp)")
         sys.exit(1)
 
-    output_root = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\application_set\pristine_pet_uv_16weeks")
-    raw_out = Path(r"C:\Users\joshk\OneDrive\Desktop\raw\application_set\pristine_pet_uv_16weeks\whole_images")
+    output_root = resolve_repo_path(repo_root, paths_cfg.get("output_root", "data/complete"))
+    raw_out = resolve_repo_path(repo_root, paths_cfg.get("raw_out", str(output_root / "whole_images")))
     output_root.mkdir(parents=True, exist_ok=True)
     raw_out.mkdir(parents=True, exist_ok=True)
 

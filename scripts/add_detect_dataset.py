@@ -237,19 +237,13 @@ def build_or_append_yolo_dataset(
 
     print(f"✅ Added {len(new_images)} new images")
 if __name__ == "__main__":
+    # Example driver — edit the two roots for your setup.
     build_or_append_yolo_dataset(
-        parent_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-        out_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv6",
+        parent_root="data/complete",
+        out_root="data/datasets/detect",
         class_to_id={
-            "nylon": 0,
-            "pe": 1,
-            "pet": 2,
-            "pla": 3,
-            "pmma": 4,
-            "pp": 5,
-            "ps": 6,
-            "pu": 7,
-            "pvc": 8,
+            "nylon": 0, "pe": 1, "pet": 2, "pla": 3, "pmma": 4,
+            "pp": 5, "ps": 6, "pu": 7, "pvc": 8,
         },
         val_split=0.2,
         seed=42,

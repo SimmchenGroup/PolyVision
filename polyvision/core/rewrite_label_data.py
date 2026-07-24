@@ -100,7 +100,7 @@ def main() -> None:
     # -----------------------
     # EDIT THESE
     # -----------------------
-    dataset_root = Path(r"C:\Users\joshk\OneDrive\Desktop\multiclass")  # contains images/, labels/, data.yaml
+    dataset_root = Path("data/datasets/detect")  # contains images/, labels/, data.yaml
     train_fraction = 0.8
     seed = 42
     recursive = True

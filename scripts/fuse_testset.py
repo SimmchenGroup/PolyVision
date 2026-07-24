@@ -25,7 +25,7 @@ Writes to <eval-dir>:
     fused_confusion.csv     (9x9 counts, same format as the per-model confusions)
 
 Usage (from repo root):
-    python -m scripts.fuse_testset --eval-dir "C:/Users/joshk/OneDrive/Desktop/raw/testset_eval"
+    python -m scripts.fuse_testset --eval-dir "path/to/data/testset_eval"
     # optional: --w-local 0.5 --w-global 0.2 --w-det 0.3
     # optional: --sweep      (grid-search weights on THIS testset — see caveat below)
 """

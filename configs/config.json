@@ -1,7 +1,7 @@
 {
   "models": {
-    "yolo": "C:\\Users\\joshk\\OneDrive\\Desktop\\multiclass\\detectv8\\results\\runs\\detect\\train\\weights\\best.pt",
-    "yolo_weights": "C:\\Users\\joshk\\OneDrive\\Desktop\\multiclass\\detectv8\\results\\runs\\detect\\train\\weights\\best.pt",
+    "yolo": "models/detect/best.pt",
+    "yolo_weights": "models/detect/best.pt",
     "local_classifier": "models/local/EfficientNetB0/best_model.keras",
     "global_classifier": "models/global/EfficientNetB0/best_model.keras",
     "enable_fusion": true
@@ -35,6 +35,6 @@
     "input_dir":    "data/raw",
     "output_root":  "data/complete/nylon",
     "raw_out":      "data/complete/nylon/whole_images",
-    "dataset_root": "data/complete-Frick"
+    "dataset_root": "data/complete"
   }
 }

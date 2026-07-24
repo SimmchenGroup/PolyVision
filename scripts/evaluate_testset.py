@@ -16,13 +16,13 @@ re-run — local is unaffected). All inference is eval/no_grad = stable GPU path
 
 Usage (from repo root):
     python -m scripts.evaluate_testset \
-        --testset-root "C:/Users/joshk/OneDrive/Desktop/raw/testset" \
+        --testset-root "path/to/data/testset" \
         --local-model  results/local/efficient/v1.0/best_model.pt \
         --global-model results/global/efficient/v1.0/best_model.pt \
         --yolo-model   models/detect/YOLOv8.8/best.pt \
         --out-dir      testset_eval
 """
-# python -m scripts.evaluate_testset --testset-root "C:\Users\joshk\OneDrive\Desktop\raw\testset" --local-model "C:\Users\joshk\OneDrive\Desktop\multiclass\ft_results\results\local\efficient\finetune_resume\finetune_resume\best_model.pt" --global-model "C:\Users\joshk\OneDrive\Desktop\multiclass\ft_results\results\global\efficient\finetune_resume\finetune_resume\best_model.pt" --yolo-model "C:\Users\joshk\OneDrive\Desktop\multiclass\detectv9\detect_colab_runs\detect\detect_colab_ft\weights\best.pt"
+# python -m scripts.evaluate_testset --testset-root "path\to\data\testset" --local-model "path\to\runs\ft_results\results\local\efficient\finetune_resume\finetune_resume\best_model.pt" --global-model "path\to\runs\ft_results\results\global\efficient\finetune_resume\finetune_resume\best_model.pt" --yolo-model "path\to\runs\detectv9\detect_colab_runs\detect\detect_colab_ft\weights\best.pt"
 #
 
 from __future__ import annotations

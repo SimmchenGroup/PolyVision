@@ -274,37 +274,20 @@ def build_dataset_from_parent(
     print("✅ Dataset built from scratch")
 
 
-build_dataset_from_parent(
-    local_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-    global_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-    out_local_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv9",
-    out_global_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\globalv9",
-    split_ratios=(0.7, 0.2, 0.1),
-    seed=123,
-    include_sidecars=True,
-    manifest_path=r"C:\Users\joshk\OneDrive\Desktop\multiclass\split_manifest.json"
-)
-
-# append_class(
-#     local_class_folder=r"C:\Users\joshk\OneDrive\Desktop\multiclass\testsetv4\pet",
-#     global_class_folder=r"C:\Users\joshk\OneDrive\Desktop\multiclass\testsetv4\pet",
-#     out_local_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv5",
-#     out_global_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\globalv5",
-#     split_ratios=(0.7, 0.2, 0.1),
-#     seed=123,
-#     include_sidecars=True,
-#     manifest_path=r"C:\Users\joshk\OneDrive\Desktop\multiclass\split_manifest.json",
-#     add_local=False,
-#     add_global=True,
-# )
-
-# append_parent_folder(
-#     local_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-#     global_root=r"C:\Users\joshk\OneDrive\Desktop\raw\complete",
-#     out_local_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\localv3",
-#     out_global_root=r"C:\Users\joshk\OneDrive\Desktop\multiclass\globalv3",
-#     split_ratios=(0.7, 0.2, 0.1),
-#     seed=123,
-#     include_sidecars=True,
-#     manifest_path=r"C:\Users\joshk\OneDrive\Desktop\multiclass\split_manifest.json"
-# )
+if __name__ == "__main__":
+    # Example driver — build the Local (crops) and Global (whole-image) ImageFolder
+    # datasets from the curated dataset. Both point at data/complete; only the input
+    # type differs (crops vs whole images). Edit the roots for your setup.
+    build_dataset_from_parent(
+        local_root="data/complete",
+        global_root="data/complete",
+        out_local_root="data/datasets/local",
+        out_global_root="data/datasets/global",
+        split_ratios=(0.7, 0.2, 0.1),
+        seed=123,
+        include_sidecars=True,
+        manifest_path="data/datasets/split_manifest.json",
+    )
+    # append_class(...) and append_parent_folder(...) are also available for adding
+    # a single class or another parent folder to an existing split — see their
+    # definitions above.

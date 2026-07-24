@@ -27,8 +27,8 @@ probability helpers are defined locally below.
 
 Usage (from repo root):
     python -m scripts.build_fusion_features \
-        --complete-root "C:/Users/joshk/OneDrive/Desktop/raw/complete" \
-        --split-source  "C:/Users/joshk/OneDrive/Desktop/multiclass/globalv9" \
+        --complete-root "path/to/data/complete" \
+        --split-source  "path/to/runs/globalv9" \
         --local-model  ".../local/efficient/.../best_model.pt" \
         --global-model ".../global/efficient/.../best_model.pt" \
         --yolo-model   ".../detectv9/.../best.pt" \
@@ -94,6 +94,8 @@ def _detect_vec(det, gray, conf):
     for i in ids:
         v[i] += 1.0
     return v / v.sum()
+
+
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
 
 
@@ -253,5 +255,5 @@ def main():
 if __name__ == "__main__":
     main()
 
-# python -m scripts.build_fusion_features --complete-root "C:/Users/joshk/OneDrive/Desktop/raw/testset" --all-as-test --local-model  "C:/Users/joshk/OneDrive/Desktop/multiclass/ft_results/results/local/efficient/finetune_resume/finetune_resume/best_model.pt" --global-model "C:/Users/joshk/OneDrive/Desktop/multiclass/ft_results/results/global/efficient/finetune_resume/finetune_resume/best_model.pt" --yolo-model   "C:/Users/joshk/OneDrive/Desktop/multiclass/detectv9/detect_colab_runs/detect/detect_colab_ft/weights/best.pt" --out "fusion_features_v9.npz"
-#python -m scripts.train_fusion_meta --features "fusion_features_v9.npz" --test-features "testset_features.npz" --detect-train-list "C:/Users/joshk/OneDrive/Desktop/multiclass/detectv9/train.txt"
+# python -m scripts.build_fusion_features --complete-root "path/to/data/testset" --all-as-test --local-model  "path/to/runs/ft_results/results/local/efficient/finetune_resume/finetune_resume/best_model.pt" --global-model "path/to/runs/ft_results/results/global/efficient/finetune_resume/finetune_resume/best_model.pt" --yolo-model   "path/to/runs/detectv9/detect_colab_runs/detect/detect_colab_ft/weights/best.pt" --out "fusion_features_v9.npz"
+#python -m scripts.train_fusion_meta --features "fusion_features_v9.npz" --test-features "testset_features.npz" --detect-train-list "path/to/runs/detectv9/train.txt"

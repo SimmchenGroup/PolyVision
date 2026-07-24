@@ -17,7 +17,7 @@ import numpy as np
 # -----------------------
 # CONFIG (defaults — override via CLI)
 # -----------------------
-DATA_YAML = Path(r"C:\Users\joshk\OneDrive\Desktop\multiclass\detectv7\data.yaml")
+DATA_YAML = Path(r"path\to\runs\detectv7\data.yaml")
 
 IMG_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 MAX_WORKERS = 8  # tune: 4-8 typical; if on slow disk/network, lower may be faster

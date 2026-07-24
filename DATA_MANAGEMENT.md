@@ -40,7 +40,7 @@ PolyVision/
 Run from the repo root in a terminal:
 
 ```bat
-xcopy /E /I "C:\Users\joshk\OneDrive\Desktop\raw\complete" "data\complete"
+xcopy /E /I "path\to\your\existing\complete" "data\complete"
 ```
 
 ### 2. Take the first DVC snapshot and push to iDrive
