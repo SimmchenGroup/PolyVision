@@ -49,6 +49,7 @@ class MicroplasticClassifier(nn.Module):
     """
 
     def __init__(self, backbone: nn.Module, feature_dim: int, num_classes: int):
+        """Wrap a feature-extractor `backbone` with the custom head Linear(feature_dim->512)->ReLU->Linear(512->num_classes)."""
         super().__init__()
         self.backbone = backbone
         self.backbone_frozen = True  # flipped to False by fine_tune_model() when top layers unfreeze
@@ -59,6 +60,7 @@ class MicroplasticClassifier(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Backbone features (in no_grad while frozen) -> classification head -> class logits."""
         if self.backbone_frozen:
             with torch.no_grad():
                 feats = self.backbone(x)
