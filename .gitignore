@@ -231,9 +231,7 @@ scripts/*/
 !scripts/build_detect_dataset.py
 !scripts/build_fusion_features.py
 !scripts/evaluate_testset.py
-!scripts/evaluate_application_set.py
 !scripts/fuse_testset.py
-!scripts/fuse_application_set.py
 !scripts/train_fusion_meta.py
 !scripts/predict_folder.py
 !scripts/run_experiment.py

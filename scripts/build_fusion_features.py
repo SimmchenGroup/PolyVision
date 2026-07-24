@@ -21,8 +21,9 @@ Images come from the nested `complete/` layout:
     complete/<class>/whole_images/<stem>.*     -> GLOBAL + DETECTION
     complete/<class>/<stem>/<crops>.tif        -> LOCAL   (the .txt labels are NOT used)
 
-Reuses: fuse_application_set (_classifier_probs, _detect_vec), evaluate_testset
-(load_classifier, CLASSES, DEVICE).
+Reuses evaluate_testset (load_classifier, CLASSES, DEVICE) and
+training.classification.data (_tif_safe_loader); the per-image classifier/detection
+probability helpers are defined locally below.
 
 Usage (from repo root):
     python -m scripts.build_fusion_features \
@@ -41,15 +42,58 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.evaluate_testset import load_classifier, CLASSES, DEVICE
-from scripts.fuse_application_set import _classifier_probs, _detect_vec
-from scripts.intensity_norm import load_reference, get_ref
+from scripts.intensity_norm import load_reference, get_ref, match_to_reference
+from training.classification.data import _tif_safe_loader
 
 K = len(CLASSES)
+
+
+def _classifier_probs(model, tf, paths, norm_ref, batch_size=32):
+    """(N,K) softmax probabilities for the given image paths (skips unreadable files).
+
+    Optionally intensity-matches each image to a reference before inference.
+    """
+    out, buf = [], []
+
+    def flush():
+        if not buf:
+            return
+        x = torch.stack(buf).to(DEVICE)
+        with torch.no_grad():
+            out.append(F.softmax(model(x), dim=1).cpu().numpy())
+        buf.clear()
+
+    for p in paths:
+        try:
+            img = _tif_safe_loader(str(p))
+            if norm_ref is not None:
+                img = match_to_reference(img, norm_ref[0], norm_ref[1])
+            buf.append(tf(img))
+        except Exception as e:
+            print(f"    [skip] {Path(p).name}: {e}")
+        if len(buf) >= batch_size:
+            flush()
+    flush()
+    return np.concatenate(out, axis=0) if out else np.zeros((0, K))
+
+
+def _detect_vec(det, gray, conf):
+    """Mean of per-detection class one-hots on one whole image, or None if no detections."""
+    dets, _ = det.detect(gray, conf=conf)
+    ids = [d.cls_id for d in dets if 0 <= d.cls_id < K]
+    if not ids:
+        return None
+    v = np.zeros(K)
+    for i in ids:
+        v[i] += 1.0
+    return v / v.sum()
 IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
 
 

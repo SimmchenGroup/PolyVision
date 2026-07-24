@@ -55,9 +55,7 @@ PolyVision/
 │   ├── evaluate_testset.py             # score each model on the labelled test set
 │   ├── build_fusion_features.py        # cache per-image [local|global|detection] vectors
 │   ├── fuse_testset.py                 # weighted late fusion + weight sweep
-│   ├── train_fusion_meta.py            # stacking meta-classifier (validation-trained)
-│   ├── evaluate_application_set.py     # aged-PET application study (%PET called)
-│   └── fuse_application_set.py         # fused %PET on the application set
+│   └── train_fusion_meta.py            # stacking meta-classifier (validation-trained)
 ├── configs/config.json         # class list, model paths, fusion weights, processing
 ├── DATA_MANAGEMENT.md          # dataset layout, annotation workflow, DVC backup
 └── README.md
@@ -163,13 +161,6 @@ python -m scripts.train_fusion_meta --features fusion_features.npz
 
 Weights are chosen on validation and frozen for the test set. The operating point
 reported in the paper is `(w_local, w_global, w_detection) = (0.44, 0.24, 0.32)`.
-
-### 5 — Application study (artificially aged PET)
-
-```bash
-python -m scripts.evaluate_application_set --root <application set> --local-model … --global-model … --yolo-model …
-python -m scripts.fuse_application_set     --root <application set> --local-model … --global-model … --yolo-model …
-```
 
 Each script prints its full options with `-h`.
 
