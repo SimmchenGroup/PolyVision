@@ -10,10 +10,9 @@ YOLO label file into ``data/complete/<class>/`` (with the whole image moved to
 ``whole_images/``). A Dataset Reviewer window (see gui/dataset_reviewer.py) allows
 later inspection and editing of saved annotations.
 
-Shared low-level helpers (image loading, box geometry, YOLO pre-processing, hole
-filling) are imported from ``polyvision.core`` / ``polyvision.ml``; only the app's
-own logic and a couple of app-specific variants (e.g. its ``threshold_image``) are
-defined here.
+Shared low-level helpers (image loading, thresholding, box geometry, YOLO
+pre-processing, hole filling) are imported from ``polyvision.core`` /
+``polyvision.ml``; only the app's own GUI logic and pipeline glue are defined here.
 
 Original author: joshk (Simmchen group, University of Strathclyde).
 """
@@ -26,9 +25,7 @@ import ctypes  # for screen size
 
 import cv2
 import numpy as np
-from skimage import measure, morphology
-from skimage.morphology import disk
-from scipy.ndimage import binary_fill_holes
+from skimage import measure
 from shutil import move
 from ultralytics import YOLO
 
@@ -54,7 +51,7 @@ from configs.load import load_json, load_microplastic_classes
 from polyvision.ml.yolo_detector import YoloDetector, prepare_for_yolo
 from polyvision.core.image_io import load_as_gray, ensure_8bit
 from polyvision.core.geometry import square_bbox, bbox_iou_rc
-from polyvision.core.thresholding import fill_holes
+from polyvision.core.thresholding import fill_holes, threshold_image
 import polyvision.core.db as db
 from polyvision.app.gui.dataset_reviewer import DatasetReviewer
 
@@ -119,78 +116,6 @@ def yolo_detect(img_gray, conf=0.25, classes=None):
 
 
 
-def threshold_image(
-        img: np.ndarray,
-        method: str = "otsu",
-        object_bright: bool = True,
-        block_size: int = 21,
-        C: int = 5,
-        otsu_offset: int = 0,
-        min_obj_size: int = 25,
-        fallback_to_adaptive: bool = True,
-        manual_thresh: int = 128,  # NEW
-) -> tuple[np.ndarray, int]:
-    # Ensure 8-bit
-    if img.dtype != np.uint8:
-        img_8 = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    else:
-        img_8 = img.copy()
-
-    thr = np.zeros_like(img_8)
-    threshold_used = -1
-
-    if method == "otsu":
-        ret, _ = cv2.threshold(img_8, 0, 255, cv2.THRESH_OTSU)
-        otsu_thresh = int(ret) + otsu_offset
-        otsu_thresh = np.clip(otsu_thresh, 0, 255)
-
-        # Apply threshold
-        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
-        _, thr = cv2.threshold(img_8, otsu_thresh, 255, thr_type)
-        threshold_used = otsu_thresh
-
-        # Convert to boolean for morphology
-        thr_bool = thr > 0
-
-        # Morphology
-        thr_bool = morphology.opening(thr_bool, disk(1))
-        thr_bool = morphology.remove_small_objects(thr_bool, max_size=min_obj_size)
-
-        # Check if any objects remain
-        if fallback_to_adaptive and not thr_bool.any():
-            # Fallback to adaptive
-            print(f"[WARN] Otsu returned empty mask, switching to adaptive threshold")
-            method = "adaptive"  # force adaptive fallback
-
-    if method == "manual":
-        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
-        _, thr = cv2.threshold(img_8, manual_thresh, 255, thr_type)
-        threshold_used = manual_thresh
-
-        thr_bool = thr > 0
-        thr_bool = morphology.opening(thr_bool, disk(1))
-        thr_bool = morphology.remove_small_objects(thr_bool, max_size=min_obj_size)
-
-    if method == "adaptive":
-        thr_type = cv2.THRESH_BINARY_INV if object_bright else cv2.THRESH_BINARY
-        thr = cv2.adaptiveThreshold(
-            img_8, 255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            thr_type,
-            block_size,
-            C
-        )
-        threshold_used = -1
-
-        # Morphology
-        thr_bool = thr > 0
-        thr_bool = morphology.opening(thr_bool, disk(1))
-        thr_bool = morphology.remove_small_objects(thr_bool, max_size=min_obj_size)
-
-    # Fill holes
-    thr_bool = binary_fill_holes(thr_bool)
-
-    return thr_bool.astype(np.uint8), threshold_used
 
 
 
