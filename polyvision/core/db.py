@@ -1,3 +1,14 @@
+"""
+SQLite catalogue for the annotation pipeline.
+
+A single database records every ingested micrograph and its derived artefacts across
+five tables: `images` (path, hash, dimensions, class, annotation status, whether it
+received manual boxes), `detections` (the bounding boxes produced for an image by a
+given method + parameter hash), `crops` (each extracted particle crop with its box and
+class), `predictions` (per-box model outputs and fused result), and `splits` (the
+train/val/test assignment per dataset version). This provides provenance so every
+crop and label is traceable back to its source image and how it was produced.
+"""
 import hashlib
 import json
 import sqlite3

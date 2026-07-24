@@ -1,3 +1,12 @@
+"""
+Replace a micrograph's background with a flat colour while preserving the particle.
+
+Used to standardise crop backgrounds: an Otsu mask separates particle from
+background (inverting if Otsu picked the bright background as foreground), the mask is
+cleaned morphologically and reduced to its largest connected component, and the
+background pixels are painted a constant colour. Returns both the composited image and
+the 0/255 particle mask.
+"""
 import cv2
 import numpy as np
 from pathlib import Path

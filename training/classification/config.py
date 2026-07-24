@@ -1,3 +1,8 @@
+"""
+Typed configuration for a classification run — hyperparameters, class list, backbone
+choice, and dataset paths — loaded from configs/config.json and passed through the
+training pipeline so every run is reproducible from its saved config.
+"""
 from __future__ import annotations
 from typing import List, Dict, Iterable
 from dataclasses import dataclass

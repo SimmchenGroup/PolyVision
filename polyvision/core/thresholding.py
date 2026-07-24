@@ -1,3 +1,12 @@
+"""
+Classical (non-learned) particle segmentation used by the annotation GUI.
+
+`threshold_image` produces a binary particle mask from a greyscale micrograph. The
+default 'otsu' path first removes the uneven background with a morphological opening
+(rolling-ball style), smooths, then applies Otsu's threshold; small-object removal,
+opening/closing, and hole-filling clean the result. This gives the automatic bounding
+boxes an annotator can then accept, correct, or replace by hand.
+"""
 from __future__ import annotations
 
 import cv2

@@ -1,3 +1,13 @@
+"""
+Dataset loading, transforms, and class balancing for classification training.
+
+Builds train/val/test datasets from an ImageFolder-style tree (the same code serves
+the Local model on crops and the Global model on whole images — only the root differs).
+Train transforms resize to the backbone's input size (224 for EfficientNet-B0),
+optionally augment, and normalise; val/test transforms are augmentation-free. Class
+imbalance is handled with an optional WeightedRandomSampler ('balanced' mode) so minor
+polymers are not swamped during training.
+"""
 import os
 import signal
 import numpy as np

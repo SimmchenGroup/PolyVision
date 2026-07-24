@@ -1,3 +1,18 @@
+"""
+Classification model definition — the architecture shared by the Local and Global
+classifiers (they are identical networks; only their training inputs differ).
+
+An ImageNet-pretrained backbone (EfficientNet-B0 by default; InceptionV3 / ResNet50
+also selectable) has its original classifier replaced by `nn.Identity`, so it acts as
+a feature extractor. Its global-average-pooled feature vector feeds a small custom
+head — Linear(feat_dim -> 512) -> ReLU -> Linear(512 -> num_classes) — producing class
+logits (softmax is applied at inference; training uses CrossEntropyLoss).
+
+Training is two-phase: the backbone is frozen for head-only pretraining, then its top
+layers are unfrozen for fine-tuning (see fine_tune.py / pipeline.py). `_freeze_all`
+and `_unfreeze_last_n_params` implement that, keeping BatchNorm frozen during
+fine-tuning for stability.
+"""
 import types
 import torch
 import torch.nn as nn

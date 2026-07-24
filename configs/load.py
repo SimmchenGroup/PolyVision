@@ -1,3 +1,10 @@
+"""
+Helpers for reading configs/config.json.
+
+`load_microplastic_classes` returns the (id, name) class list the GUI and annotation
+pipeline use; it falls back to a built-in list (including the "-1 = auto/model" option)
+if the config omits an explicit `classes.items` block.
+"""
 from __future__ import annotations
 
 import json
@@ -6,6 +13,7 @@ from typing import Any
 
 
 def load_json(path: str | Path) -> dict[str, Any]:
+    """Load and parse a JSON file as a dict."""
     path = Path(path)
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)

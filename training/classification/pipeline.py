@@ -1,3 +1,13 @@
+"""
+End-to-end classification training pipeline.
+
+Orchestrates a full run: load config, build datasets/loaders, construct the
+pretrained model, then train in two phases — (1) head-only with the backbone frozen,
+(2) fine-tune with the top backbone layers unfrozen (SGD, class-weighted loss, label
+smoothing). Handles versioned output directories, checkpointing the best model,
+early stopping, resuming from a crash, and writing training history + metadata so a
+run is fully reproducible. Used by both the Local and Global classifier runs.
+"""
 import matplotlib
 matplotlib.use('Agg')
 

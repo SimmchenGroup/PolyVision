@@ -1,9 +1,18 @@
+"""
+Bounding-box geometry helpers (all boxes in (row_min, col_min, row_max, col_max) order).
+
+`square_bbox` expands a detection to a square about its centre (with an optional
+margin) and clamps it to the image bounds, so extracted crops keep their aspect ratio
+when later resized to the classifier's square input. `bbox_iou_rc` is the standard
+intersection-over-union used for de-duplicating overlapping boxes.
+"""
 from __future__ import annotations
 
 from typing import Iterable
 
 
 def square_bbox(bbox, img_shape, margin: int = 0):
+    """Return the smallest square box centred on `bbox` (plus `margin`), clamped to the image."""
     min_r, min_c, max_r, max_c = bbox
     h = max_r - min_r
     w = max_c - min_c

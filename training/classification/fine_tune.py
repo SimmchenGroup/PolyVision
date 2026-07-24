@@ -1,3 +1,10 @@
+"""
+Fine-tuning stage: unfreeze the top of the (previously frozen) backbone so the
+network can adapt to microplastic morphology, while keeping BatchNorm layers frozen
+for stability on the modest dataset. Called after head-only pretraining in
+pipeline.py. Several arguments are retained only for API compatibility with the
+earlier TensorFlow code path and are unused in the PyTorch implementation.
+"""
 import torch.nn as nn
 
 

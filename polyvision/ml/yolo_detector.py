@@ -1,3 +1,15 @@
+"""
+Thin inference wrapper around the trained YOLOv8 particle detector.
+
+`YoloDetector.detect()` runs the Ultralytics model on a single greyscale micrograph
+and returns a list of `YoloDet` records — each an axis-aligned bounding box (in
+(row_min, col_min, row_max, col_max) pixel order, matching the rest of the codebase),
+a confidence, and a class id. These boxes drive both the crop extraction that feeds
+the Local classifier and the detector's own vote in the fusion stage.
+
+YOLO expects an 8-bit 3-channel image, so greyscale input is normalised to 8-bit and
+tiled to BGR by `prepare_for_yolo()` before prediction.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,6 +21,7 @@ from polyvision.core.image_io import ensure_8bit
 
 
 def prepare_for_yolo(gray_img: np.ndarray) -> np.ndarray:
+    """Convert a greyscale (or single-channel) image to the 3-channel BGR YOLO expects."""
     if gray_img.ndim == 2:
         return cv2.cvtColor(gray_img, cv2.COLOR_GRAY2BGR)
     if gray_img.ndim == 3 and gray_img.shape[2] == 1:
