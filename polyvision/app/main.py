@@ -1,8 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Feb 25 19:26:02 2026
+PolyVision annotation application (PyQt5) — entry point: ``python -m polyvision.app.main``.
 
-@author: joshk
+Interactive tool for turning raw micrographs into the labelled dataset the models
+train on. It loads raw images (folder from configs/config.json), proposes particle
+bounding boxes by Otsu thresholding or the trained YOLO detector, lets the user accept,
+adjust, or draw boxes by hand, and on acceptance writes the per-particle crops and a
+YOLO label file into ``data/complete/<class>/`` (with the whole image moved to
+``whole_images/``). A Dataset Reviewer window (see gui/dataset_reviewer.py) allows
+later inspection and editing of saved annotations.
+
+This module is self-contained: for portability it re-implements several helpers that
+also exist in ``polyvision.core`` (image loading, thresholding, box geometry, crop
+extraction) rather than importing them.
+
+Original author: joshk (Simmchen group, University of Strathclyde).
 """
 import json
 import sys
