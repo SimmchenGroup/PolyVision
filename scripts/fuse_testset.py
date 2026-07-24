@@ -50,6 +50,7 @@ PROB_COLS = [f"p_{c}" for c in CLASSES]  # used automatically if present in the 
 
 
 def _read(path: Path) -> list[dict]:
+    """Read a *_predictions.csv into a list of dict rows."""
     if not path.exists():
         print(f"[warn] {path.name} not found — that model is dropped from the fusion.")
         return []
@@ -100,15 +101,18 @@ def _aggregate(rows: list[dict], key_fn, label_key: str):
 
 def _local_key(r: dict) -> str:
     # crop path: .../testset/<class>/<source>/<crop>.tif  -> <source> folder name
+    """Grouping key for a local (crop) prediction row — the source-image stem."""
     return Path(r["path"]).parent.name
 
 
 def _whole_key(r: dict) -> str:
     # whole-image path: .../whole_images/<name>.jpg  -> <name> stem
+    """Grouping key for a whole-image prediction row — the image stem."""
     return Path(r.get("path") or r.get("image")).stem
 
 
 def fuse(eval_dir: Path, weights: dict[str, float]):
+    """Weighted late-fusion of the three models over an eval dir; returns a list of (true, predicted) label pairs."""
     local = _aggregate(_read(eval_dir / "local_predictions.csv"), _local_key, "predicted")
     glob = _aggregate(_read(eval_dir / "global_predictions.csv"), _whole_key, "predicted")
     det = _aggregate(_read(eval_dir / "detection_predictions.csv"), _whole_key, "det_class")
@@ -144,12 +148,14 @@ def fuse(eval_dir: Path, weights: dict[str, float]):
 
 
 def _accuracy(cm_rows) -> float:
+    """Overall accuracy from a list of (true, predicted) pairs."""
     if not cm_rows:
         return 0.0
     return sum(t == p for t, p in cm_rows) / len(cm_rows)
 
 
 def _macro_f1(cm_rows) -> float:
+    """Macro-averaged F1 from a list of (true, predicted) pairs."""
     tp = defaultdict(int); fp = defaultdict(int); fn = defaultdict(int)
     for t, p in cm_rows:
         if t == p:
@@ -167,6 +173,7 @@ def _macro_f1(cm_rows) -> float:
 
 
 def main():
+    """CLI: fuse the three models on a test-set eval dir; with --sweep, grid-search the weight simplex."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--eval-dir", required=True, help="dir with the 3 *_predictions.csv")
     ap.add_argument("--w-local", type=float, default=0.5)

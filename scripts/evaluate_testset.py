@@ -85,6 +85,7 @@ def write_confusion(rows, out_csv: Path, title: str):
 
 # ----------------------------------------------------------------------------- classifier
 def load_classifier(path: str, model_name: str):
+    """Load a trained classifier checkpoint onto the eval device and return it in eval mode."""
     model = torch.load(path, map_location=DEVICE, weights_only=False).to(DEVICE).eval()
     image_size, mean, std = _get_model_io(model_name)
     tf = _make_transforms(image_size, mean, std, augment=False)
@@ -96,10 +97,12 @@ def load_classifier(path: str, model_name: str):
 
 def classify_paths(model, tf, paths, root, out_csv: Path, title: str, batch_size=32,
                    norm_ref=None):
+    """Classify a list of image paths in batches, writing per-image predictions to CSV; returns (true, predicted) pairs."""
     rows_cm, csv_rows = [], []
     buf_img, buf_path = [], []
 
     def flush():
+        """Run the buffered batch through the model and record its predictions."""
         if not buf_img:
             return
         x = torch.stack(buf_img).to(DEVICE)
@@ -135,6 +138,7 @@ def classify_paths(model, tf, paths, root, out_csv: Path, title: str, batch_size
 
 # ----------------------------------------------------------------------------- main
 def main():
+    """CLI: evaluate the Local, Global, and Detection models on the labelled test set."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--testset-root", required=True)
     ap.add_argument("--local-model", default=None, help="local classifier .pt")

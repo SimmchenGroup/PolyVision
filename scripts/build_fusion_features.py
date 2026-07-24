@@ -63,6 +63,7 @@ def _classifier_probs(model, tf, paths, norm_ref, batch_size=32):
     out, buf = [], []
 
     def flush():
+        """Run the buffered classifier batch and collect its softmax outputs."""
         if not buf:
             return
         x = torch.stack(buf).to(DEVICE)
@@ -114,6 +115,7 @@ def build_split_map(split_source: Path, splits: list[str]) -> dict[tuple[str, st
 
 
 def _find_whole(complete_root: Path, cls: str, stem: str) -> Path | None:
+    """Locate the whole image for (class, stem) under complete_root/<class>/whole_images."""
     wdir = complete_root / cls / "whole_images"
     for ext in IMG_EXTS:
         p = wdir / f"{stem}{ext}"
@@ -124,6 +126,7 @@ def _find_whole(complete_root: Path, cls: str, stem: str) -> Path | None:
 
 
 def _crops_for(complete_root: Path, cls: str, stem: str) -> list[Path]:
+    """List the crop files for (class, stem) under complete_root/<class>/<stem>."""
     cdir = complete_root / cls / stem
     if not cdir.is_dir():
         return []
@@ -132,6 +135,7 @@ def _crops_for(complete_root: Path, cls: str, stem: str) -> list[Path]:
 
 
 def main():
+    """CLI: build the 27-d [local|global|detection] feature table (NPZ) over the val/test images."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--complete-root", required=True)
     ap.add_argument("--split-source", default=None, help="globalv9 root with train/val/test/ "

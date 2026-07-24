@@ -21,6 +21,7 @@ from training.classification.data import get_tfdata_datasets, compute_steps_per_
 
 
 def _setup_gpu():
+    """Configure the CUDA device for training (selection + memory settings)."""
     if torch.cuda.is_available():
         print(f"[GPU] CUDA available: {torch.cuda.get_device_name(0)}")
         print(f"[GPU] VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
@@ -34,6 +35,7 @@ def _setup_gpu():
 
 
 def build_config(model_name: str = "inception", weights_path: str | None = None) -> ExperimentConfig:
+    """Assemble the ExperimentConfig for a training run from the chosen backbone and paths."""
     return ExperimentConfig(
         training_type="microplastic",
         learning_rate=0.00001,
@@ -53,6 +55,7 @@ def build_config(model_name: str = "inception", weights_path: str | None = None)
 
 
 def main():
+    """CLI entry point: dispatch the train / retrain / analyze mode."""
     _setup_gpu()
 
     parser = argparse.ArgumentParser(description="Run / retrain / analyze microplastic experiments.")

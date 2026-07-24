@@ -18,6 +18,7 @@ IMG_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp"}
 
 
 def iter_images(images_dir: Path, recursive: bool = True) -> list[Path]:
+    """Yield image paths under `images_dir` (optionally recursing into subfolders)."""
     if not images_dir.exists():
         raise FileNotFoundError(f"Missing images directory: {images_dir}")
 
@@ -33,6 +34,7 @@ def iter_images(images_dir: Path, recursive: bool = True) -> list[Path]:
 
 
 def write_split_txt(paths: list[Path], out_path: Path, *, make_absolute: bool = True, dataset_root: Path | None = None) -> None:
+    """Write one image path per line to a YOLO split-list file."""
     if make_absolute:
         lines = [str(p.resolve()) for p in paths]
     else:
@@ -50,6 +52,7 @@ def make_train_val_split(
     train_fraction: float = 0.8,
     seed: int = 42,
 ) -> tuple[list[Path], list[Path]]:
+    """Shuffle and split image paths into (train, val) by the configured fraction."""
     if not (0.0 < train_fraction < 1.0):
         raise ValueError("train_fraction must be between 0 and 1 (exclusive)")
 
@@ -108,6 +111,7 @@ def main() -> None:
     # -----------------------
     # EDIT THESE
     # -----------------------
+    """Regenerate train.txt / val.txt and update data.yaml for the detection dataset (edit paths at the top)."""
     dataset_root = Path("data/datasets/detect")  # contains images/, labels/, data.yaml
     train_fraction = 0.8
     seed = 42

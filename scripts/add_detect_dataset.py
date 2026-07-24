@@ -26,6 +26,7 @@ MAX_WORKERS = 8
 # FAST PRECHECK
 # -----------------------
 def band_count_fast(p: Path) -> int | None:
+    """Return the channel count of image `p` from its header, or None if unreadable."""
     try:
         with Image.open(p) as im:
             return len(im.getbands())
@@ -34,6 +35,7 @@ def band_count_fast(p: Path) -> int | None:
 
 
 def dtype_fast(p: Path) -> np.dtype | None:
+    """Return the pixel dtype of image `p` from its header, or None if unreadable."""
     img = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
     if img is None:
         return None
@@ -44,6 +46,7 @@ def dtype_fast(p: Path) -> np.dtype | None:
 # NORMALIZATION
 # -----------------------
 def normalize_to_3ch_inplace(p: Path) -> tuple[Path, str]:
+    """Rewrite image `p` in place as an 8-bit 3-channel file (YOLO's expected input)."""
     img = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
     if img is None:
         return p, "unreadable"
@@ -67,6 +70,7 @@ def normalize_to_3ch_inplace(p: Path) -> tuple[Path, str]:
 
 
 def ensure_dir(p: Path):
+    """Create directory `p` (and parents) if it does not exist."""
     p.mkdir(parents=True, exist_ok=True)
 
 
@@ -107,6 +111,7 @@ def build_or_append_yolo_dataset(
     strict: bool = False,
     jpg_quality: int = 95,
 ):
+    """Add new images and remapped labels to an existing YOLO dataset, updating the train/val lists and data.yaml."""
     random.seed(seed)
 
     parent_root = Path(parent_root)

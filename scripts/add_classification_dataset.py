@@ -20,9 +20,11 @@ CROP_IMAGE_EXTS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
 WHOLE_IMAGE_EXTS = CROP_IMAGE_EXTS
 
 def ensure_dir(p: Path):
+    """Create directory `p` (and parents) if it does not exist."""
     p.mkdir(parents=True, exist_ok=True)
 
 def normalize_image(p: Path):
+    """Rewrite image `p` as 8-bit 3-channel BGR (drops alpha / expands greyscale) before it is copied into a dataset."""
     img = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
     if img is None:
         return
@@ -71,6 +73,7 @@ def append_class(
     add_local: bool = True,
     add_global: bool = True,
 ):
+    """Add one class's crops and whole images to an existing split without reshuffling the rest."""
     local_class_folder = Path(local_class_folder)
     global_class_folder = Path(global_class_folder)
     out_local_root = Path(out_local_root)
@@ -169,6 +172,7 @@ def append_parent_folder(
     include_sidecars=True,
     manifest_path="split_manifest.json"
 ):
+    """Add every class under a parent folder to an existing split."""
     local_root = Path(local_root)
     global_root = Path(global_root)
 
@@ -191,6 +195,7 @@ def append_parent_folder(
         )
 
 def reset_output_dirs(out_local_root: Path, out_global_root: Path, manifest_path: Path):
+    """Delete and recreate the output dataset directories and manifest for a fresh build."""
     if out_local_root.exists():
         shutil.rmtree(out_local_root)
     if out_global_root.exists():
@@ -210,6 +215,7 @@ def build_dataset_from_parent(
     include_sidecars=True,
     manifest_path="split_manifest.json"
 ):
+    """Build the Local (crops) and Global (whole-image) ImageFolder datasets from data/complete with a seeded train/val/test split, writing a stem->split manifest."""
     local_root = Path(local_root)
     global_root = Path(global_root)
     out_local_root = Path(out_local_root)

@@ -42,6 +42,7 @@ IMG_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp")
 
 
 def main():
+    """CLI: run a trained model over every image in a folder and write predictions."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model-path", required=True, help="Path to best_model.pt (full model object).")
     ap.add_argument("--model", default="efficient",
@@ -84,6 +85,7 @@ def main():
     batch_imgs, batch_paths = [], []
 
     def flush():
+        """Run the buffered batch through the model and record predictions."""
         nonlocal correct, total
         if not batch_imgs:
             return

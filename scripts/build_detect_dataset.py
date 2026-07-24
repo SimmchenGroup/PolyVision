@@ -17,6 +17,7 @@ import cv2
 
 
 def ensure_dir(p: Path):
+    """Create directory `p` (and parents) if it does not exist."""
     p.mkdir(parents=True, exist_ok=True)
 
 

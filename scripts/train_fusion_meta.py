@@ -67,6 +67,7 @@ def _report(name, y_true, y_pred, labels=None):
 
 
 def main():
+    """CLI: train the stacking meta-classifier on validation features and evaluate it on the test set."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--features", default=None,
                     help="npz whose VAL rows train the meta-model. Optional if --meta-model "
@@ -100,6 +101,7 @@ def main():
         det_train = {_P(l.strip()).stem for l in _P(args.detect_train_list).read_text().splitlines() if l.strip()}
 
     def _load(path, tag):
+        """Load an NPZ feature table (X, y, keys) and report its size."""
         d = np.load(path, allow_pickle=True)
         X_, y_, split_, keys_ = d["X"], d["y"], d["split"], d["keys"]
         if det_train is not None:
