@@ -1,3 +1,14 @@
+"""
+Command-line entry point for classification training (the local runner for the Local
+and Global EfficientNet-B0 models).
+
+Modes (`--mode`): `train` a new model from a chosen backbone
+(`--model efficient|inception|res`), `retrain` from a saved checkpoint, or `analyze`
+an existing model's layers. Which model you train (Local vs Global) is determined by
+the dataset root you point it at. Handles GPU setup and builds the run config, then
+hands off to the training pipeline in `training/classification/pipeline.py`. See the
+example commands at the bottom of the file.
+"""
 from pathlib import Path
 import argparse
 

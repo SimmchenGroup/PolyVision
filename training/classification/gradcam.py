@@ -1,3 +1,13 @@
+"""
+Grad-CAM explainability for the EfficientNet-B0 classifiers.
+
+Computes a class-activation heatmap at the last convolutional layer (7x7 for
+EfficientNet-B0 at 224 px) and overlays it on the input. The overlay uses per-pixel
+alpha (opacity proportional to activation) plus a cubic upsample and light blur, so
+cold/low-activation regions let the image show through instead of compositing the
+colormap's dark zero-point over the whole image. Supports arbitrary target class,
+colormap, gamma, and alpha, and can return the raw arrays for figure assembly.
+"""
 from __future__ import annotations
 
 import os

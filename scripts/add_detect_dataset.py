@@ -1,3 +1,11 @@
+"""
+Incrementally build or extend a YOLOv8 detection dataset.
+
+Like `build_detect_dataset` but non-destructive: `build_or_append_yolo_dataset` adds
+new whole images (converted to JPEG) and their remapped labels to an existing dataset,
+updating the train/val split lists and `data.yaml` rather than rebuilding from scratch.
+Use it to grow the detector's dataset as more images are annotated.
+"""
 from __future__ import annotations
 
 from pathlib import Path

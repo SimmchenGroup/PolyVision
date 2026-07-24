@@ -1,3 +1,14 @@
+"""
+Assemble the classification training datasets (ImageFolder layout) from the curated
+`data/complete` tree.
+
+`build_dataset_from_parent` walks every class, pairs each whole image with its crop
+folder by stem, and writes two ImageFolder datasets with a reproducible train/val/test
+split (seeded): particle **crops** for the Local model and **whole images** for the
+Global model, plus a JSON manifest recording which stem went to which split so the two
+models stay aligned. `append_class` / `append_parent_folder` add data to an existing
+split without reshuffling. Run as a script via the example driver in `__main__`.
+"""
 from pathlib import Path
 import shutil
 import random

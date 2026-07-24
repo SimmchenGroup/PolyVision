@@ -1,3 +1,11 @@
+"""
+Train the YOLOv8 particle detector (Ultralytics).
+
+Entry point for detection training: sets up the GPU, runs a dataset precheck
+(band/dtype sanity on the images), launches Ultralytics training on the assembled
+detection dataset, and classifies common crash causes for easier debugging. Produces
+the detector weights used by both the crop-extraction and detection-vote stages.
+"""
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,8 @@
+"""
+Post-hoc analysis helpers: measure each particle's area, the model's prediction
+confidence, and the correlation between the two (does the classifier get more
+confident on larger particles?). Feeds the accuracy-vs-size style diagnostics.
+"""
 import numpy as np
 import cv2
 

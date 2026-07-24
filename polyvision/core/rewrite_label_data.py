@@ -1,3 +1,11 @@
+"""
+Regenerate the train/val split files and `data.yaml` for a YOLO detection dataset.
+
+Given a dataset root containing `images/`, `labels/`, and `data.yaml`, this rewrites
+`train.txt` / `val.txt` with a fresh seeded split (optionally recursive, optionally
+absolute image paths) and updates `data.yaml` to point at them. A maintenance utility
+for the detection dataset — edit the paths in `main()` and run as a script.
+"""
 from __future__ import annotations
 
 import random

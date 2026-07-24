@@ -1,3 +1,8 @@
+"""
+Layer-usage diagnostics for a trained network: measure per-layer activation
+statistics to gauge how much each layer/neuron contributes and surface under-used
+capacity. Used by the `analyze` mode of run_experiment.
+"""
 import numpy as np
 
 

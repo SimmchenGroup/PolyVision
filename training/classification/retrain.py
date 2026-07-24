@@ -1,3 +1,10 @@
+"""
+Resume or continue classification training from a saved checkpoint.
+
+`load_and_retrain` restores a model + optimiser state and runs further training phases
+(reusing the same phase loop as train.py), so an interrupted or under-fit run can be
+extended without starting over. Invoked by `run_experiment --mode retrain`.
+"""
 import csv
 import json
 import copy

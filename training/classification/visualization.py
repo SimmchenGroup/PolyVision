@@ -1,3 +1,9 @@
+"""
+Plotting utilities for a classification run: training/validation curves (from history
+or CSV), layer-activation heatmaps, network-summary and neuron-importance bars, and
+per-class precision-recall / ROC / mAP-vs-confidence curves. All figures render
+headless (Agg backend) so they can be produced on a training server.
+"""
 import matplotlib
 matplotlib.use('Agg')
 

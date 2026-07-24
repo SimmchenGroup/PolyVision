@@ -1,4 +1,8 @@
-# training/classification/metadata.py
+"""
+Write per-run reproducibility metadata — the resolved config, model summary, and
+environment (Python, platform) — to JSON and human-readable text alongside a training
+run, so any result can be traced back to exactly how it was produced.
+"""
 from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass

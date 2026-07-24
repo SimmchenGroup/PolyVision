@@ -1,3 +1,12 @@
+"""
+Assemble a YOLOv8 detection dataset from the curated `data/complete` tree.
+
+`build_yolo_dataset_with_class_map` reads each class's whole images and their per-image
+YOLO label files, converts the images to 8-bit 3-channel JPEG (YOLO's expected input),
+remaps the class token in every label to the global class index, writes a randomised
+train/val split (`train.txt` / `val.txt`) and a `data.yaml`, and leaves the source data
+untouched. Run via the example driver in `__main__`.
+"""
 from __future__ import annotations
 
 from pathlib import Path

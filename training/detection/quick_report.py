@@ -1,4 +1,11 @@
-# quick_report.py
+"""
+Quick evaluation report for a trained YOLOv8 detector.
+
+Reads a dataset's `data.yaml`, resolves the requested split, lists its images and YOLO
+labels, runs the detector, and summarises detection performance (per-class and overall)
+without the full Ultralytics validation harness — a fast sanity check on a trained
+detector against a chosen split.
+"""
 from __future__ import annotations
 
 import argparse

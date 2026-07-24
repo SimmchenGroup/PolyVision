@@ -1,3 +1,12 @@
+"""
+Core classification training loop.
+
+`train_model` runs one training phase — iterating epochs with the given optimiser and
+(class-weighted, label-smoothed) loss, tracking train/val accuracy and loss, saving the
+best checkpoint, applying early stopping, and writing per-epoch history to CSV. Called
+once per phase (head-only, then fine-tune) by the pipeline. Includes GPU-sync hooks
+that make CUDA errors surface at their true location for debugging.
+"""
 import os
 import csv
 import copy
