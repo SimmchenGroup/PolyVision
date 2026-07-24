@@ -10,9 +10,10 @@ YOLO label file into ``data/complete/<class>/`` (with the whole image moved to
 ``whole_images/``). A Dataset Reviewer window (see gui/dataset_reviewer.py) allows
 later inspection and editing of saved annotations.
 
-This module is self-contained: for portability it re-implements several helpers that
-also exist in ``polyvision.core`` (image loading, thresholding, box geometry, crop
-extraction) rather than importing them.
+Shared low-level helpers (image loading, box geometry, YOLO pre-processing, hole
+filling) are imported from ``polyvision.core`` / ``polyvision.ml``; only the app's
+own logic and a couple of app-specific variants (e.g. its ``threshold_image``) are
+defined here.
 
 Original author: joshk (Simmchen group, University of Strathclyde).
 """
@@ -50,34 +51,13 @@ from polyvision.ml.fusion import ParticleFusionClassifier, fuse_predictions
 from polyvision.ml.local_classifier import LocalParticleClassifier
 from polyvision.ml.global_classifier import GlobalImageClassifier
 from configs.load import load_json, load_microplastic_classes
-from polyvision.ml.yolo_detector import YoloDetector
+from polyvision.ml.yolo_detector import YoloDetector, prepare_for_yolo
+from polyvision.core.image_io import load_as_gray, ensure_8bit
+from polyvision.core.geometry import square_bbox, bbox_iou_rc
+from polyvision.core.thresholding import fill_holes
 import polyvision.core.db as db
 from polyvision.app.gui.dataset_reviewer import DatasetReviewer
 
-def load_microplastic_classes(config: dict) -> list[tuple[int, str]]:
-    """
-    Returns list of (class_id, name) including any Auto class like (-1, "Auto (model)").
-    Falls back to a small default if missing.
-    """
-    classes_block = config.get("classes", {})
-    items = classes_block.get("items", [])
-    if items:
-        out: list[tuple[int, str]] = []
-        for item in items:
-            out.append((int(item["id"]), str(item["name"])))
-        return out
-
-    # Fallback (keeps app usable if config is old)
-    return [
-        (-1, "Auto (model)"),
-        (0, "Nylon"),
-        (1, "PE"),
-        (2, "PMMA"),
-        (3, "PP"),
-        (4, "PS"),
-        (5, "PU"),
-        (6, "PVC"),
-    ]
 
 def bbox_coverage(blob, box) -> float:
     """Fraction of blob's bbox area covered by box. Boxes are (min_r, min_c, max_r, max_c)."""
@@ -133,40 +113,10 @@ def yolo_detect(img_gray, conf=0.25, classes=None):
     return dets, results
 
 
-def prepare_for_yolo(gray_img: np.ndarray) -> np.ndarray:
-    """
-    Convert grayscale -> 3-channel BGR for YOLO input.
-    Output shape: (H, W, 3)
-    """
-    if gray_img.ndim == 2:
-        return cv2.cvtColor(gray_img, cv2.COLOR_GRAY2BGR)
-    if gray_img.ndim == 3 and gray_img.shape[2] == 1:
-        return cv2.cvtColor(gray_img[:, :, 0], cv2.COLOR_GRAY2BGR)
-    if gray_img.ndim == 3 and gray_img.shape[2] == 3:
-        return gray_img
-    raise ValueError(f"Unexpected image shape for YOLO: {gray_img.shape}")
 
 
-def load_as_gray(path: str | Path) -> np.ndarray:
-    path = str(path)
-    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        raise FileNotFoundError(path)
-
-    if img.ndim == 3:
-        if img.shape[2] == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        elif img.shape[2] == 4:
-            img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
-        elif img.shape[2] == 1:
-            img = img[:, :, 0]
-    return img
 
 
-def ensure_8bit(img: np.ndarray) -> np.ndarray:
-    if img.dtype != np.uint8:
-        return cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    return img.copy()
 
 
 def threshold_image(
@@ -243,32 +193,8 @@ def threshold_image(
     return thr_bool.astype(np.uint8), threshold_used
 
 
-def fill_holes(binary: np.ndarray) -> np.ndarray:
-    filled = binary_fill_holes(binary.astype(bool))
-    return filled.astype(np.uint8)
 
 
-def square_bbox(bbox, img_shape, margin: int = 0):
-    min_r, min_c, max_r, max_c = bbox
-    h = max_r - min_r
-    w = max_c - min_c
-    side = max(h, w) + 2 * margin
-
-    c_r = (min_r + max_r) / 2
-    c_c = (min_c + max_c) / 2
-
-    new_min_r = int(round(c_r - side / 2))
-    new_max_r = int(round(c_r + side / 2))
-    new_min_c = int(round(c_c - side / 2))
-    new_max_c = int(round(c_c + side / 2))
-
-    H, W = img_shape[:2]
-    new_min_r = max(new_min_r, 0)
-    new_min_c = max(new_min_c, 0)
-    new_max_r = min(new_max_r, H)
-    new_max_c = min(new_max_c, W)
-
-    return new_min_r, new_min_c, new_max_r, new_max_c
 
 
 def extract_particle_crops(
@@ -447,24 +373,6 @@ def draw_yolo_boxes(gray_img, results, conf_thresh=0.25):
 # ---------------------------------------------------------------------
 # === BBOX HELPERS ===
 # ---------------------------------------------------------------------
-def bbox_iou_rc(a, b) -> float:
-    """IoU for bboxes in (min_r, min_c, max_r, max_c)."""
-    a_min_r, a_min_c, a_max_r, a_max_c = a
-    b_min_r, b_min_c, b_max_r, b_max_c = b
-
-    inter_min_r = max(a_min_r, b_min_r)
-    inter_min_c = max(a_min_c, b_min_c)
-    inter_max_r = min(a_max_r, b_max_r)
-    inter_max_c = min(a_max_c, b_max_c)
-
-    inter_h = max(0, inter_max_r - inter_min_r)
-    inter_w = max(0, inter_max_c - inter_min_c)
-    inter = inter_h * inter_w
-
-    a_area = max(0, a_max_r - a_min_r) * max(0, a_max_c - a_min_c)
-    b_area = max(0, b_max_r - b_min_r) * max(0, b_max_c - b_min_c)
-    denom = a_area + b_area - inter
-    return float(inter / denom) if denom > 0 else 0.0
 
 
 def nms_dets_class_agnostic(dets, iou_thresh: float = 0.6):
