@@ -1,0 +1,17 @@
+{
+  "local": {
+    "mean": 129.2849,
+    "std": 71.6961,
+    "n_images": 1500
+  },
+  "global": {
+    "mean": 183.626,
+    "std": 33.3924,
+    "n_images": 1500
+  },
+  "detection": {
+    "mean": 183.3954,
+    "std": 32.5885,
+    "n_images": 1500
+  }
+}

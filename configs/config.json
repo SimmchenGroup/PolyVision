@@ -1,0 +1,40 @@
+{
+  "models": {
+    "yolo": "C:\\Users\\joshk\\OneDrive\\Desktop\\multiclass\\detectv8\\results\\runs\\detect\\train\\weights\\best.pt",
+    "yolo_weights": "C:\\Users\\joshk\\OneDrive\\Desktop\\multiclass\\detectv8\\results\\runs\\detect\\train\\weights\\best.pt",
+    "local_classifier": "models/local/EfficientNetB0/best_model.keras",
+    "global_classifier": "models/global/EfficientNetB0/best_model.keras",
+    "enable_fusion": true
+  },
+  "classes": {
+    "auto_class_id": -1,
+    "items": [
+      { "id": -1, "name": "Auto (model)" },
+      { "id": 0, "name": "Nylon" },
+      { "id": 1, "name": "PE" },
+      { "id": 2, "name": "PET" },
+      { "id": 3, "name": "PLA" },
+      { "id": 4, "name": "PMMA" },
+      { "id": 5, "name": "PP" },
+      { "id": 6, "name": "PS" },
+      { "id": 7, "name": "PU" },
+      { "id": 8, "name": "PVC" }
+    ]
+  },
+  "fusion": {
+    "weights": [0.3, 0.5, 0.2],
+    "use_bayesian": false,
+    "use_meta_model": false
+  },
+  "processing": {
+    "min_area": 50,
+    "margin": 3,
+    "use_yolo": false
+  },
+  "paths": {
+    "input_dir":    "data/raw",
+    "output_root":  "data/complete/nylon",
+    "raw_out":      "data/complete/nylon/whole_images",
+    "dataset_root": "data/complete-Frick"
+  }
+}
