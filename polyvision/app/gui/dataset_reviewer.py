@@ -123,6 +123,7 @@ def build_stylesheet(c: dict) -> str:
 
 
 def _dot_icon(color_hex: str, size: int = 12) -> QIcon:
+    """Return a small round colour-swatch QIcon of the given hex colour."""
     pm = QPixmap(size, size)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
@@ -144,6 +145,7 @@ class _DrawableView(QGraphicsView):
     zoomed = pyqtSignal()             # emitted on any zoom / fit change
 
     def __init__(self, scene, parent=None):
+        """Initialise the drawable graphics view with draw/delete modes off."""
         super().__init__(scene, parent)
         self._draw_mode = False
         self._delete_mode = False
@@ -159,17 +161,20 @@ class _DrawableView(QGraphicsView):
         self._fit_scale = 1.0
 
     def set_draw_mode(self, on: bool):
+        """Enable or disable box-drawing mode."""
         self._draw_mode = bool(on)
         if not on:
             self._clear_rubber()
 
     def set_delete_mode(self, on: bool):
+        """Enable or disable click/drag-to-delete-box mode."""
         self._delete_mode = bool(on)
         if not on:
             self._clear_rubber()
 
     # ---- rubber-band helpers ----
     def _clear_rubber(self):
+        """Remove the current rubber-band selection rectangle."""
         self._dragging = False
         self._start = None
         self._draw_right_delete = False
@@ -178,6 +183,7 @@ class _DrawableView(QGraphicsView):
         self._rubber = None
 
     def _begin_rubber(self, event, colour):
+        """Start a rubber-band rectangle at the click position."""
         self._dragging = True
         self._start = self.mapToScene(event.pos())
         pen = QPen(QColor(colour), 2, Qt.DashLine)
@@ -190,6 +196,7 @@ class _DrawableView(QGraphicsView):
         self._rubber.setRect(QRectF(self._start, self._start))
 
     def _box_index_at(self, event):
+        """Return the index of the box under the cursor, or None."""
         pos = self.mapToScene(event.pos())
         items = self.scene().items(pos, Qt.IntersectsItemBoundingRect)
         for item in items:
@@ -198,6 +205,7 @@ class _DrawableView(QGraphicsView):
         return None
 
     def _finish_delete(self, event):
+        """Complete a delete drag: remove boxes inside the rubber-band rectangle."""
         rect = self._rubber.rect().normalized() if self._rubber is not None else None
         self._clear_rubber()
         if rect is None:
@@ -214,6 +222,7 @@ class _DrawableView(QGraphicsView):
 
     def mousePressEvent(self, event):
         # Delete tool: left-drag rubber (release decides click vs region)
+        """Mouse-press handler: start drawing/deleting, or fall back to panning."""
         if self._delete_mode and event.button() == Qt.LeftButton:
             self._begin_rubber(event, "#ff3333")
             event.accept()
@@ -244,6 +253,7 @@ class _DrawableView(QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        """Mouse-move handler: update the active rubber-band rectangle."""
         if (self._draw_mode or self._delete_mode) and self._dragging \
                 and self._rubber is not None and self._start is not None:
             self._rubber.setRect(QRectF(self._start, self.mapToScene(event.pos())).normalized())
@@ -253,6 +263,7 @@ class _DrawableView(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         # Delete tool release
+        """Mouse-release handler: finalise the drawn box or the delete action."""
         if self._delete_mode and self._dragging and event.button() == Qt.LeftButton:
             self._finish_delete(event)
             event.accept()
@@ -286,12 +297,15 @@ class _DrawableView(QGraphicsView):
 
     # ---- zoom / pan ----
     def current_scale(self) -> float:
+        """Current view zoom scale factor."""
         return float(self.transform().m11())
 
     def is_zoomed(self) -> bool:
+        """True if the view is zoomed in beyond its fit scale."""
         return self.current_scale() > self._fit_scale * 1.05
 
     def _apply_scale(self, factor: float):
+        """Scale the view by `factor`, clamped to sensible zoom bounds."""
         scale = self.current_scale() * factor
         scale = max(self._min_scale, min(self._max_scale, scale))
         cur = self.current_scale()
@@ -304,9 +318,11 @@ class _DrawableView(QGraphicsView):
         self.zoomed.emit()
 
     def zoom_by(self, factor: float):
+        """Zoom the view by a multiplicative factor."""
         self._apply_scale(factor)
 
     def fit_view(self):
+        """Fit the whole scene within the view."""
         if self.scene() is None:
             return
         rect = self.scene().sceneRect()
@@ -318,6 +334,7 @@ class _DrawableView(QGraphicsView):
         self.zoomed.emit()
 
     def wheelEvent(self, event):
+        """Zoom in/out on mouse-wheel scroll."""
         factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
         self._apply_scale(factor)
         event.accept()
@@ -412,6 +429,7 @@ def _load_gray_robust(path: Path) -> np.ndarray:
 
 
 def _gray_to_pixmap(img: np.ndarray) -> QPixmap:
+    """Convert a greyscale image array to a QPixmap for display."""
     img8 = ensure_8bit(img)
     h, w = img8.shape
     qimg = QImage(img8.data, w, h, w, QImage.Format_Grayscale8)
@@ -432,6 +450,7 @@ class DatasetReviewer(QMainWindow):
     def __init__(self, dataset_root: str | Path,
                  class_names: list[tuple[int, str]] | None = None,
                  parent=None):
+        """Build the Dataset Reviewer window for the given dataset root and class list."""
         super().__init__(parent)
         self.dataset_root = Path(dataset_root)
         self.class_names = {int(cid): name for cid, name in (class_names or [])}
@@ -460,6 +479,7 @@ class DatasetReviewer(QMainWindow):
     # ── UI construction ───────────────────────────────────────────────────────
 
     def _card(self, title, hint=None, stretch_body=False):
+        """Build a titled card frame used to group a panel's widgets."""
         frame = QFrame()
         frame.setObjectName("card")
         lay = QVBoxLayout(frame)
@@ -481,6 +501,7 @@ class DatasetReviewer(QMainWindow):
 
     def _build_ui(self):
         # ── shared control widgets (kept: names, signals, slots) ──
+        """Construct the reviewer's widgets and lay out the window."""
         self.class_list = QListWidget()
         self.class_list.currentTextChanged.connect(self._on_class_selected)
 
@@ -768,9 +789,11 @@ class DatasetReviewer(QMainWindow):
     # ── theme ─────────────────────────────────────────────────────────────────
 
     def _theme(self) -> dict:
+        """Return the active theme's colour tokens."""
         return THEMES[self.current_theme]
 
     def apply_theme(self):
+        """Apply the current theme's stylesheet to the window."""
         global _ACTIVE
         c = THEMES[self.current_theme]
         _ACTIVE = c
@@ -786,6 +809,7 @@ class DatasetReviewer(QMainWindow):
         self.update()
 
     def toggle_theme(self):
+        """Switch between the light and dark themes."""
         self.current_theme = "light" if self.current_theme == "dark" else "dark"
         self.apply_theme()
         self._render()
@@ -793,6 +817,7 @@ class DatasetReviewer(QMainWindow):
     # ── tools ─────────────────────────────────────────────────────────────────
 
     def set_tool(self, tool: str):
+        """Switch the active tool (select / draw / delete)."""
         if tool == "select":
             self.draw_check.setChecked(False)
             self.delete_check.setChecked(False)
@@ -805,6 +830,7 @@ class DatasetReviewer(QMainWindow):
         self._sync_tool_tabs()
 
     def _sync_tool_tabs(self):
+        """Sync the tool toggle checkboxes with the active tool."""
         if self.draw_check.isChecked():
             self.current_tool = "draw"
         elif self.delete_check.isChecked():
@@ -820,6 +846,7 @@ class DatasetReviewer(QMainWindow):
         self._update_drag_mode()
 
     def _update_drag_mode(self):
+        """Enable scroll-hand dragging only when zoomed in select mode."""
         if self.current_tool == "select" and self.view.is_zoomed():
             self.view.setDragMode(QGraphicsView.ScrollHandDrag)
         else:
@@ -828,17 +855,21 @@ class DatasetReviewer(QMainWindow):
     # ── zoom ──────────────────────────────────────────────────────────────────
 
     def zoom_in(self):
+        """Zoom the image view in."""
         self.view.zoom_by(1.25)
 
     def zoom_out(self):
+        """Zoom the image view out."""
         self.view.zoom_by(1.0 / 1.25)
 
     def _on_zoomed(self):
+        """Record that the user manually zoomed (disables auto-fit)."""
         self._user_zoomed = True
         self._update_zoom_label()
         self._update_drag_mode()
 
     def _update_zoom_label(self):
+        """Update the zoom-percentage label."""
         fit = getattr(self.view, "_fit_scale", 1.0) or 1.0
         self.zoom_label.setText(f"{int(round(self.view.current_scale() / fit * 100))}%")
 
@@ -846,11 +877,13 @@ class DatasetReviewer(QMainWindow):
 
     def _class_dot(self, name: str, row: int) -> str:
         # Colour by class id if the folder name maps to a known class, else row.
+        """Return the overlay colour swatch icon for a class row."""
         name_to_id = {n: i for i, n in self.class_names.items()}
         cid = name_to_id.get(name, row)
         return CLASS_OVERLAY_PALETTE[cid % len(CLASS_OVERLAY_PALETTE)]
 
     def _class_totals(self, class_name: str) -> tuple[int, int]:
+        """Return (annotated, total) image counts for a class."""
         class_dir = self.dataset_root / class_name
         total = sum(
             1 for d in class_dir.iterdir()
@@ -860,6 +893,7 @@ class DatasetReviewer(QMainWindow):
         return total - done, total
 
     def _make_class_row(self, name: str, dot_color: str, remaining: int, total: int):
+        """Build a class-list row widget with its colour dot and progress counter."""
         w = QWidget()
         w.setStyleSheet("background: transparent;")
         lay = QHBoxLayout(w)
@@ -878,6 +912,7 @@ class DatasetReviewer(QMainWindow):
         return w
 
     def _populate_classes(self):
+        """Fill the class list from the dataset root."""
         self.class_list.blockSignals(True)
         self.class_list.clear()
         self._class_count_labels.clear()
@@ -897,11 +932,13 @@ class DatasetReviewer(QMainWindow):
         self.class_list.blockSignals(False)
 
     def _update_class_count(self, class_name: str):
+        """Refresh the remaining/total counter shown on a class row."""
         if class_name in self._class_count_labels:
             remaining, total = self._class_totals(class_name)
             self._class_count_labels[class_name].setText(f"{remaining}/{total}")
 
     def _make_image_row(self, stem: str, box_count: int):
+        """Build an image-list row widget showing the stem and its box count."""
         w = QWidget()
         w.setStyleSheet("background: transparent;")
         lay = QHBoxLayout(w)
@@ -916,6 +953,7 @@ class DatasetReviewer(QMainWindow):
         return w
 
     def _populate_images(self, class_name: str):
+        """Fill the image list for the selected class."""
         self.image_list.blockSignals(True)
         self.image_list.clear()
         class_dir = self.dataset_root / class_name
@@ -945,6 +983,7 @@ class DatasetReviewer(QMainWindow):
         )
 
     def _populate_assign_classes(self):
+        """Fill the class picker used to reassign a box's class."""
         self.assign_class_list.blockSignals(True)
         self.assign_class_list.clear()
         # Prefer explicit class_names; else derive from folder names.
@@ -968,10 +1007,12 @@ class DatasetReviewer(QMainWindow):
         self.assign_class_list.blockSignals(False)
 
     def _on_assign_class_row(self, row: int):
+        """Handle selection in the assign-class list."""
         if 0 <= row < self.assign_class_list.count():
             self._assign_class_id = int(self.assign_class_list.item(row).data(Qt.UserRole))
 
     def _assign_class_to_selected(self):
+        """Assign the chosen class to the currently selected box."""
         if self._selected_idx is None or not (0 <= self._selected_idx < len(self._boxes)):
             return
         _, min_r, min_c, max_r, max_c = self._boxes[self._selected_idx]
@@ -985,6 +1026,7 @@ class DatasetReviewer(QMainWindow):
     # ── selection handlers ────────────────────────────────────────────────────
 
     def _on_class_selected(self, class_name: str):
+        """Handle selecting a class: load its images."""
         if not class_name:
             return
         self._current_class = class_name
@@ -994,6 +1036,7 @@ class DatasetReviewer(QMainWindow):
         self._refresh_topbar()
 
     def _on_image_selected(self, stem: str):
+        """Handle selecting an image: load it and its labels."""
         if not stem or not self._current_class:
             return
         self._current_stem = stem
@@ -1003,6 +1046,7 @@ class DatasetReviewer(QMainWindow):
     # ── image loading ─────────────────────────────────────────────────────────
 
     def _whole_image_path(self) -> Path | None:
+        """Path to the current whole image."""
         if not self._current_class or not self._current_stem:
             return None
         p = self.dataset_root / self._current_class / "whole_images" / f"{self._current_stem}.tif"
@@ -1015,17 +1059,20 @@ class DatasetReviewer(QMainWindow):
         return p if p.exists() else None
 
     def _crop_folder(self) -> Path | None:
+        """Path to the current image's crop folder."""
         if not self._current_class or not self._current_stem:
             return None
         return self.dataset_root / self._current_class / self._current_stem
 
     def _label_path(self) -> Path | None:
+        """Path to the current image's YOLO label file."""
         folder = self._crop_folder()
         if folder is None:
             return None
         return folder / f"{self._current_stem}.txt"
 
     def _load_image_and_labels(self):
+        """Load the current whole image and its bounding-box labels."""
         img_path = self._whole_image_path()
         if img_path is None:
             self._set_status(
@@ -1058,6 +1105,7 @@ class DatasetReviewer(QMainWindow):
     # ── top bar ───────────────────────────────────────────────────────────────
 
     def _refresh_topbar(self):
+        """Update the top-bar filename/info labels."""
         if not hasattr(self, "filename_label"):
             return
         self.filename_label.setText(self._current_stem or "—")
@@ -1071,9 +1119,11 @@ class DatasetReviewer(QMainWindow):
     # ── rendering ─────────────────────────────────────────────────────────────
 
     def _box_colour(self, cls_id: int) -> QColor:
+        """Return the overlay colour for a class id."""
         return QColor(CLASS_OVERLAY_PALETTE[cls_id % len(CLASS_OVERLAY_PALETTE)])
 
     def _render(self):
+        """Redraw the scene: the whole image plus all current bounding boxes."""
         self.scene.clear()
         self._pix_item = QGraphicsPixmapItem()
         self.scene.addItem(self._pix_item)
@@ -1122,6 +1172,7 @@ class DatasetReviewer(QMainWindow):
         self.update_crop_preview()
 
     def _populate_box_list(self):
+        """Fill the box list for the current image."""
         self.box_list.blockSignals(True)
         self.box_list.clear()
         for i, (cls_id, *_rest) in enumerate(self._boxes):
@@ -1140,6 +1191,7 @@ class DatasetReviewer(QMainWindow):
             self.box_list_count_label.setText(f"({len(self._boxes)})")
 
     def _make_box_row(self, i, text, dot_color):
+        """Build a row widget for one bounding box in the box list."""
         c = self._theme()
         w = QWidget()
         w.setStyleSheet("background: transparent;")
@@ -1165,6 +1217,7 @@ class DatasetReviewer(QMainWindow):
         return w
 
     def _clear_view(self):
+        """Clear the image view and reset the current selection state."""
         self._img_gray = None
         self._boxes = []
         self._selected_idx = None
@@ -1183,6 +1236,7 @@ class DatasetReviewer(QMainWindow):
         self._render()
 
     def update_crop_preview(self):
+        """Update the crop-preview thumbnail for the selected box."""
         if self._img_gray is None or self._selected_idx is None \
                 or not (0 <= self._selected_idx < len(self._boxes)):
             self.crop_preview.setText("Select a box to preview")
@@ -1248,6 +1302,7 @@ class DatasetReviewer(QMainWindow):
             self._set_status("No boxes in region.")
 
     def _delete_selected_box(self):
+        """Delete the currently selected bounding box."""
         if self._selected_idx is not None and 0 <= self._selected_idx < len(self._boxes):
             self._boxes.pop(self._selected_idx)
             self._selected_idx = None
@@ -1257,6 +1312,7 @@ class DatasetReviewer(QMainWindow):
     # ── save ──────────────────────────────────────────────────────────────────
 
     def _save(self):
+        """Write the edited labels back to the .txt file and re-extract crops."""
         if self._img_gray is None or not self._current_stem:
             return
         h, w = self._img_gray.shape
@@ -1276,6 +1332,7 @@ class DatasetReviewer(QMainWindow):
     # ── delete entire image ───────────────────────────────────────────────────
 
     def _delete_entire_image(self):
+        """Permanently delete the current image, its crops, and its label file."""
         if not self._current_stem or not self._current_class:
             return
         reply = QMessageBox.question(
@@ -1308,12 +1365,14 @@ class DatasetReviewer(QMainWindow):
     # ── draw / delete mode toggles ────────────────────────────────────────────
 
     def _on_draw_toggled(self, on: bool):
+        """Handle the draw-boxes checkbox toggle."""
         self.view.set_draw_mode(on)
         if on:
             self.delete_check.setChecked(False)
         self._sync_tool_tabs()
 
     def _on_delete_toggled(self, on: bool):
+        """Handle the delete-on-click checkbox toggle."""
         self.view.set_delete_mode(on)
         if on:
             self.draw_check.setChecked(False)
@@ -1322,6 +1381,7 @@ class DatasetReviewer(QMainWindow):
     # ── status ────────────────────────────────────────────────────────────────
 
     def _set_status(self, msg: str):
+        """Show a message in the status bar."""
         self.status_label.setText(msg)
         if hasattr(self, "statusBar"):
             self.statusBar().showMessage(msg)
@@ -1329,6 +1389,7 @@ class DatasetReviewer(QMainWindow):
     # ── image navigation ──────────────────────────────────────────────────────
 
     def _next_image(self):
+        """Move to the next image in the list."""
         row = self.image_list.currentRow()
         if row + 1 < self.image_list.count():
             self.image_list.setCurrentRow(row + 1)
@@ -1341,6 +1402,7 @@ class DatasetReviewer(QMainWindow):
                     self.image_list.setCurrentRow(0)
 
     def _prev_image(self):
+        """Move to the previous image in the list."""
         row = self.image_list.currentRow()
         if row > 0:
             self.image_list.setCurrentRow(row - 1)
@@ -1355,9 +1417,11 @@ class DatasetReviewer(QMainWindow):
     # ── session progress persistence ──────────────────────────────────────────
 
     def _progress_path(self) -> Path:
+        """Path to the review-progress JSON file."""
         return self.dataset_root / ".review_progress.json"
 
     def _save_progress(self):
+        """Persist the current review position to disk."""
         if not self._current_class or not self._current_stem:
             return
         try:
@@ -1376,6 +1440,7 @@ class DatasetReviewer(QMainWindow):
             pass
 
     def _load_progress(self):
+        """Restore the last review position from disk."""
         p = self._progress_path()
         if not p.exists():
             return
@@ -1455,6 +1520,7 @@ class DatasetReviewer(QMainWindow):
     # ── keyboard shortcuts (mirrors ImagePreview.keyPressEvent) ───────────────
 
     def keyPressEvent(self, event):
+        """Keyboard shortcuts: navigation, save, delete, and tool switching."""
         key = event.key()
 
         if key in (Qt.Key_Return, Qt.Key_Enter):
@@ -1499,6 +1565,7 @@ class DatasetReviewer(QMainWindow):
         self._update_zoom_label()
 
     def resizeEvent(self, event):
+        """Re-fit the view when the window is resized."""
         super().resizeEvent(event)
         if not self._user_zoomed and self._img_gray is not None:
             self.view.fit_view()
