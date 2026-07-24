@@ -276,3 +276,6 @@ training/detection/runs/
 /training/detection/runs/
 
 polyvision/app/main_backup.py
+
+# dataset_sync.bat IS part of the documented data workflow (keep it despite *.bat)
+!scripts/dataset_sync.bat
