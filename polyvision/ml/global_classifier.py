@@ -25,6 +25,7 @@ class GlobalImageClassifier:
     """
 
     def __init__(self, model_path: str, num_classes: int = 9, device: str = "cpu"):
+        """Load the Global whole-image classifier weights onto the given device."""
         self.device = device  # kept for compatibility; not used
         self.num_classes = int(num_classes)
         self.model_path = str(model_path)
@@ -85,6 +86,7 @@ class GlobalImageClassifier:
         return result
 
     def _predict_features(self, x: np.ndarray) -> np.ndarray:
+        """Return the penultimate-layer feature vector(s) for preprocessed input (builds the feature sub-model lazily)."""
         if self._feature_model is None:
             if len(self.model.layers) < 2:
                 raise ValueError("Model has too few layers to extract penultimate features.")
@@ -96,6 +98,7 @@ class GlobalImageClassifier:
         return feats.astype(np.float32)
 
     def _preprocess(self, img: np.ndarray) -> np.ndarray:
+        """Convert to 3-channel RGB, resize to the model input, and apply EfficientNet preprocessing."""
         if img.ndim == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         elif img.ndim == 3 and img.shape[2] == 1:

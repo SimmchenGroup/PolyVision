@@ -56,6 +56,7 @@ def mask_background_flat_color(
 
 
 def process_folder(input_dir, output_dir, flat_color=(127, 127, 127)):
+    """Flat-background every image in `input_dir`, writing composited images to <out>/images and masks to <out>/masks."""
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
 

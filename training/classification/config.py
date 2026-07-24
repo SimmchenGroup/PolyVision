@@ -32,9 +32,11 @@ class MicroplasticClass:
   name: str
 
 def load_config(path: str | Path) -> dict:
+  """Load config.json as a dict."""
   with open(path, "r", encoding="utf-8") as f:
     return json.load(f)
 
 def get_microplastic_classes(config: dict) -> list[MicroplasticClass]:
+  """Return the list of MicroplasticClass(id, name) defined in the config."""
   items = config.get("classes", {}).get("items", [])
   return [MicroplasticClass(int(x["id"]), str(x["name"])) for x in items]

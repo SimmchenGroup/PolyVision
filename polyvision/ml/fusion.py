@@ -178,6 +178,7 @@ class MetaClassifier(nn.Module):
                  local_dim: int = 512,
                  global_dim: int = 256,
                  bbox_dim: int = 4):
+        """Record the class count and each model's input dimensionality for the fusion head."""
         super().__init__()
 
         self.yolo_dim = yolo_dim

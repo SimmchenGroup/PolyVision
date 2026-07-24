@@ -52,6 +52,7 @@ def fine_tune_model(
 
 
 def make_sgd_optimizer(model: nn.Module, learning_rate: float, momentum: float = 0.9):
+    """Build an SGD optimizer over the currently trainable (unfrozen) parameters."""
     import torch.optim as optim
     return optim.SGD(
         filter(lambda p: p.requires_grad, model.parameters()),

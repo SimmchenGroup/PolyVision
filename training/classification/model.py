@@ -27,6 +27,7 @@ from torchvision.models import (
 
 
 def get_model_input_size(model_name):
+    """Return the (H, W, C) input size for a backbone name (299 for Inception, 224 for EfficientNet-B0, 380 for B4)."""
     model_name = model_name.lower().strip()
     if model_name in {"inception", "inceptionv3"}:
         return (299, 299, 3)
@@ -69,6 +70,7 @@ class MicroplasticClassifier(nn.Module):
 
 
 def _freeze_all(module: nn.Module):
+    """Freeze every parameter of `module` (requires_grad = False)."""
     for p in module.parameters():
         p.requires_grad = False
 
@@ -106,6 +108,7 @@ def _disable_all_inplace(backbone: nn.Module, name: str):
     try:
         from torchvision.models.inception import BasicConv2d as _BConv
         def _bconv_fwd(self, x):
+            """Non-inplace BasicConv2d forward (conv -> bn -> relu); patched in to avoid in-place ops that break autograd."""
             return F.relu(self.bn(self.conv(x)), inplace=False)
         for m in backbone.modules():
             if isinstance(m, _BConv):

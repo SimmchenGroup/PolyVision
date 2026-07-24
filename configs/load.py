@@ -20,6 +20,7 @@ def load_json(path: str | Path) -> dict[str, Any]:
 
 
 def load_microplastic_classes(config: dict) -> list[tuple[int, str]]:
+    """Return the [(id, name)] class list from config, or a built-in fallback if none is defined."""
     classes_block = config.get("classes", {})
     items = classes_block.get("items", [])
     if items:

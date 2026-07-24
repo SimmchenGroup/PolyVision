@@ -28,6 +28,7 @@ def threshold_image(
     manual_thresh: int = 128,
     background_kernel_size: int = 51,
 ) -> tuple[np.ndarray, int]:
+    """Segment particles from a greyscale image; returns (binary mask uint8, threshold used). See module docstring for the method options."""
     if img.dtype != np.uint8:
         img_8 = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     else:
@@ -90,5 +91,6 @@ def threshold_image(
 
 
 def fill_holes(binary: np.ndarray) -> np.ndarray:
+    """Fill fully-enclosed holes in a binary mask."""
     filled = binary_fill_holes(binary.astype(bool))
     return filled.astype(np.uint8)

@@ -40,11 +40,13 @@ class YoloDet:
 
 class YoloDetector:
     def __init__(self, model_path: str, device: str = "cpu", imgsz: int = 800):
+        """Load the YOLOv8 weights and record the inference device and image size."""
         self.model = YOLO(model_path)
         self.device = device
         self.imgsz = imgsz
 
     def detect(self, img_gray: np.ndarray, conf: float = 0.25, classes: list[int] | None = None):
+        """Detect particles in one greyscale image; returns (list of YoloDet, raw Ultralytics result)."""
         img_8 = ensure_8bit(img_gray)
         img_input = prepare_for_yolo(img_8)
 

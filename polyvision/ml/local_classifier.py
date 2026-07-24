@@ -26,6 +26,7 @@ class LocalParticleClassifier:
     """
 
     def __init__(self, model_path: str, num_classes: int = 9, device: str = "cpu"):
+        """Load the Local crop-classifier weights onto the given device."""
         self.device = device  # kept for compatibility; not used
         self.num_classes = int(num_classes)
         self.model_path = str(model_path)

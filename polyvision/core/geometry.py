@@ -36,6 +36,7 @@ def square_bbox(bbox, img_shape, margin: int = 0):
 
 
 def bbox_iou_rc(a, b) -> float:
+    """Intersection-over-union of two boxes in (row_min, col_min, row_max, col_max) order."""
     a_min_r, a_min_c, a_max_r, a_max_c = a
     b_min_r, b_min_c, b_max_r, b_max_c = b
 
@@ -55,6 +56,7 @@ def bbox_iou_rc(a, b) -> float:
 
 
 def nms_dets_class_agnostic(dets, iou_thresh: float = 0.6):
+    """Class-agnostic non-max suppression: keep highest-confidence boxes, drop any that overlap a kept box above `iou_thresh`."""
     if not dets:
         return []
 
