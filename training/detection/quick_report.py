@@ -43,6 +43,7 @@ class Sample:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     p = argparse.ArgumentParser(description="Quick dataset + training plots for YOLO datasets.")
     p.add_argument("--data-yaml", type=Path, required=True, help="Path to YOLO data.yaml")
     p.add_argument("--out-dir", type=Path, default=Path("report_figs"), help="Output folder for figures")
@@ -56,6 +57,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def read_data_yaml(path: Path) -> dict:
+    """Load a YOLO data.yaml (split paths + class names)."""
     d = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(d, dict):
         raise ValueError(f"Invalid YAML: {path}")
@@ -176,11 +178,13 @@ def parse_yolo_label_file(label_path: Path) -> tuple[list[YoloBox], list[str]]:
 
 
 def load_gray(img_path: Path) -> np.ndarray | None:
+    """Load an image as greyscale."""
     img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
     return img
 
 
 def yolo_to_xyxy_abs(box: YoloBox, w_img: int, h_img: int) -> tuple[int, int, int, int]:
+    """Convert a normalised YOLO box to absolute (x1, y1, x2, y2) pixel coordinates."""
     x1 = int(round((box.x_c - box.w / 2) * w_img))
     y1 = int(round((box.y_c - box.h / 2) * h_img))
     x2 = int(round((box.x_c + box.w / 2) * w_img))
@@ -193,6 +197,7 @@ def yolo_to_xyxy_abs(box: YoloBox, w_img: int, h_img: int) -> tuple[int, int, in
 
 
 def sha1_file(path: Path, chunk: int = 1 << 20) -> str:
+    """SHA-1 hash of a file, read in chunks."""
     h = hashlib.sha1()
     with path.open("rb") as f:
         while True:
@@ -204,10 +209,12 @@ def sha1_file(path: Path, chunk: int = 1 << 20) -> str:
 
 
 def ensure_out_dir(out_dir: Path) -> None:
+    """Create the output directory if needed."""
     out_dir.mkdir(parents=True, exist_ok=True)
 
 
 def plot_class_distribution(df_boxes: pd.DataFrame, class_names: list[str] | None, out_dir: Path) -> None:
+    """Bar plot of bounding-box counts per class."""
     if df_boxes.empty:
         return
 
@@ -239,6 +246,7 @@ def plot_class_distribution(df_boxes: pd.DataFrame, class_names: list[str] | Non
 
 
 def plot_split_sizes(df_imgs: pd.DataFrame, df_boxes: pd.DataFrame, out_dir: Path) -> None:
+    """Bar plot of image and box counts per split."""
     splits = ["train", "val"]
     img_counts = df_imgs.groupby("split")["image_path"].nunique().reindex(splits).fillna(0).astype(int)
     obj_counts = df_boxes.groupby("split")["cls_id"].count().reindex(splits).fillna(0).astype(int)
@@ -257,6 +265,7 @@ def plot_split_sizes(df_imgs: pd.DataFrame, df_boxes: pd.DataFrame, out_dir: Pat
 
 
 def plot_bbox_geometry(df_boxes: pd.DataFrame, out_dir: Path) -> None:
+    """Distributions of box width, height, and aspect ratio."""
     if df_boxes.empty:
         return
 
@@ -281,6 +290,7 @@ def plot_bbox_geometry(df_boxes: pd.DataFrame, out_dir: Path) -> None:
 
 
 def plot_objects_per_image(df_boxes: pd.DataFrame, out_dir: Path) -> None:
+    """Histogram of the number of detections per image."""
     if df_boxes.empty:
         return
     per_img = df_boxes.groupby(["split", "image_path"]).size().reset_index(name="n_obj")
@@ -298,6 +308,7 @@ def plot_objects_per_image(df_boxes: pd.DataFrame, out_dir: Path) -> None:
 
 
 def draw_overlay_grid(samples: list[Sample], df_boxes: pd.DataFrame, class_names: list[str] | None, out_path: Path, n: int, seed: int) -> None:
+    """Grid of sample images with their bounding boxes drawn."""
     rng = random.Random(seed)
     if not samples:
         return
@@ -380,6 +391,7 @@ def augment_preview(img: np.ndarray) -> list[tuple[str, np.ndarray]]:
 
 
 def plot_augmentation_panel(samples: list[Sample], out_dir: Path, seed: int) -> None:
+    """Panel illustrating the training augmentations on sample images."""
     rng = random.Random(seed)
     readable = []
     for s in samples:
@@ -411,6 +423,7 @@ def plot_augmentation_panel(samples: list[Sample], out_dir: Path, seed: int) -> 
 
 
 def plot_quality_checks(quality: dict[str, int], out_dir: Path) -> None:
+    """Plot the results of the dataset quality checks."""
     keys = list(quality.keys())
     vals = [quality[k] for k in keys]
 
@@ -426,6 +439,7 @@ def plot_quality_checks(quality: dict[str, int], out_dir: Path) -> None:
 
 
 def plot_training_dynamics(results_csv: Path, out_dir: Path) -> None:
+    """Plot detector training curves from an Ultralytics results.csv."""
     df = pd.read_csv(results_csv)
     if df.empty:
         return
@@ -439,6 +453,7 @@ def plot_training_dynamics(results_csv: Path, out_dir: Path) -> None:
     metric_cols = [c for c in df.columns if any(k in c.lower() for k in ("precision", "recall", "map", "f1"))]
 
     def _plot_lines(cols: list[str], title: str, fname: str) -> None:
+        """Helper: line-plot the given result columns onto one axis."""
         if not cols:
             return
         fig, ax = plt.subplots(figsize=(10, 4))
@@ -469,6 +484,7 @@ def plot_training_dynamics(results_csv: Path, out_dir: Path) -> None:
 
 
 def main() -> None:
+    """CLI: generate the quick evaluation report for a trained detector."""
     args = parse_args()
     random.seed(args.seed)
     np.random.seed(args.seed)

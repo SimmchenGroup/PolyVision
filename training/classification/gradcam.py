@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 
 
 def _get_device():
+    """Return the inference device (CUDA if available, else CPU)."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -35,6 +36,7 @@ _INCEPTION_STD  = np.array([0.5, 0.5, 0.5], dtype=np.float32)
 
 
 def _get_preprocess_and_size(model: nn.Module, model_name: str | None = None):
+    """Return the (transform, mean, std) and input size for the given backbone."""
     name = (model_name or "").strip().lower()
     if name in {"inception", "inceptionv3"}:
         return (299, 299), _INCEPTION_MEAN, _INCEPTION_STD
@@ -82,23 +84,28 @@ class _GradCAMHooks:
     """Registers forward + backward hooks on a target layer."""
 
     def __init__(self, layer: nn.Module):
+        """Register forward/backward hooks on the target layer to capture activations and gradients."""
         self.activations = None
         self.gradients = None
         self._fwd_hook = layer.register_forward_hook(self._fwd)
         self._bwd_hook = layer.register_full_backward_hook(self._bwd)
 
     def _fwd(self, module, input, output):
+        """Forward hook: store the layer's activations."""
         self.activations = output.detach()
 
     def _bwd(self, module, grad_input, grad_output):
+        """Backward hook: store the gradients flowing into the layer."""
         self.gradients = grad_output[0].detach()
 
     def remove(self):
+        """Remove the registered hooks."""
         self._fwd_hook.remove()
         self._bwd_hook.remove()
 
 
 def _compute_gradcam(model: nn.Module, tensor: torch.Tensor, layer: nn.Module, class_index: int | None):
+    """Compute the raw Grad-CAM heatmap for a target class at the given conv layer."""
     hooks = _GradCAMHooks(layer)
     model.eval()
 
@@ -126,6 +133,7 @@ def _compute_gradcam(model: nn.Module, tensor: torch.Tensor, layer: nn.Module, c
     neg = torch.clamp(-cam, min=0)
 
     def _norm(t):
+        """Min-max normalise an array to [0,1]."""
         mx = t.max()
         return t / (mx + 1e-8) if mx > 1e-8 else torch.zeros_like(t)
 
@@ -137,6 +145,7 @@ def _compute_gradcam(model: nn.Module, tensor: torch.Tensor, layer: nn.Module, c
 # ---------------------------------------------------------------------------
 
 def _apply_cmap(hm01: np.ndarray, cmap: str = "magma") -> np.ndarray:
+    """Map a [0,1] heatmap to an RGB image via the named matplotlib colormap."""
     name = (cmap or "magma").strip().lower()
     cv2_map = {
         "jet": getattr(cv2, "COLORMAP_JET", None),
@@ -173,6 +182,7 @@ def _overlay_core(img_rgb, hm01, w, h, alpha, cmap, gamma, per_pixel_alpha, blur
 
 
 def _resolve_layer(model, last_conv_layer_name):
+    """Resolve a dotted layer name (e.g. 'backbone.features.8.0') to the actual module."""
     if last_conv_layer_name is not None:
         for name, mod in model.named_modules():
             if name == last_conv_layer_name:
@@ -232,6 +242,7 @@ def render_gradcam_for_path(
     per_pixel_alpha: bool = True,
     blur: int = 11,
 ) -> int:
+    """Compute and (optionally) save the Grad-CAM overlay for one image path."""
     device = _get_device()
     model = model.to(device)
 
@@ -254,6 +265,7 @@ def render_gradcam_for_path(
     pos, neg, class_index = _compute_gradcam(model, tensor, layer, class_index)
 
     def _overlay(hm01):
+        """Overlay a [0,1] heatmap on the source image."""
         return _overlay_core(img_rgb, hm01, w, h, alpha, cmap, gamma, per_pixel_alpha, blur)
 
     super_pos = _overlay(pos)
@@ -283,6 +295,7 @@ def _predict_on_filepaths(
     model_name: str | None = None,
     batch_size: int = 32,
 ) -> np.ndarray:
+    """Run the model over image paths and return their predicted classes and confidences."""
     device = _get_device()
     model = model.to(device)
     model.eval()
@@ -331,6 +344,7 @@ def generate_gradcam_top_bottom_confidence(
     cmap: str = "magma",
     gamma: float = 1.0,
 ):
+    """Save Grad-CAMs for the most- and least-confident predictions per class."""
     device = _get_device()
     model = torch.load(str(model_path), map_location=device, weights_only=False)
 
@@ -365,6 +379,7 @@ def generate_gradcam_top_bottom_confidence(
     _, last_layer = find_last_conv_layer(model)
 
     def _save_two_cams(out_dir, rank, p, c, pred_k, least_k):
+        """Save the predicted-class and least-class Grad-CAMs for one image."""
         base = Path(p).stem
         render_gradcam_for_path(model=model, img_path=p, model_name=model_name,
                                 class_index=pred_k, alpha=alpha, show=False, cmap=cmap, gamma=gamma,
@@ -374,6 +389,7 @@ def generate_gradcam_top_bottom_confidence(
                                 save_path=out_dir / f"{rank:02d}_{base}__least{least_k}__conf{c:.3f}.png")
 
     def _save_set(indices, tag):
+        """Save Grad-CAMs for a set of image indices under a tag."""
         out_dir = output_dir / tag
         out_dir.mkdir(parents=True, exist_ok=True)
         for rank, i in enumerate(indices, start=1):
@@ -402,6 +418,7 @@ def generate_gradcam_top_bottom_confidence(
 
 
 def generate_gradcam(model_path, output_dir, num_samples=5):
+    """Save Grad-CAM overlays for a sample of images."""
     return generate_gradcam_top_bottom_confidence(
         model_path=model_path, output_dir=output_dir,
         model_name=None, top_k=int(num_samples), bottom_k=int(num_samples), alpha=0.4,

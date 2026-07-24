@@ -45,6 +45,7 @@ MAX_WORKERS = 8  # tune: 4-8 typical; if on slow disk/network, lower may be fast
 # pass guards against cause #1 (Ultralytics' SiLU defaults to non-inplace, but
 # we flip anything that exposes the attribute to be safe).
 def setup_gpu(disable_cudnn: bool = True):
+    """Configure the CUDA device for detector training (optionally disable cuDNN)."""
     if not torch.cuda.is_available():
         print("[GPU] No CUDA device found — running on CPU")
         return
@@ -103,6 +104,7 @@ def classify_crash(exc: Exception) -> str:
 # FAST PRECHECK (metadata-only) — normalise images to 3-channel uint8
 # -----------------------
 def band_count_fast(p: Path) -> int | None:
+    """Channel count of image `p` from its header, or None if unreadable."""
     try:
         with Image.open(p) as im:
             return len(im.getbands())
@@ -111,6 +113,7 @@ def band_count_fast(p: Path) -> int | None:
 
 
 def dtype_fast(p: Path) -> np.dtype | None:
+    """Pixel dtype of image `p`, or None if unreadable."""
     img = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
     if img is None:
         return None
@@ -118,6 +121,7 @@ def dtype_fast(p: Path) -> np.dtype | None:
 
 
 def normalize_to_3ch_inplace(p: Path) -> tuple[Path, str]:
+    """Rewrite image `p` in place as an 8-bit 3-channel file."""
     img = cv2.imread(str(p), cv2.IMREAD_UNCHANGED)
     if img is None:
         return p, "unreadable"
@@ -141,6 +145,7 @@ def normalize_to_3ch_inplace(p: Path) -> tuple[Path, str]:
 
 
 def run_precheck(images_dir: Path):
+    """Sanity-check the dataset images (channel count / dtype) before training."""
     files = [p for p in images_dir.rglob("*")
              if p.is_file() and p.suffix.lower() in IMG_EXTS]
 
@@ -191,6 +196,7 @@ def run_precheck(images_dir: Path):
 # TRAIN
 # -----------------------
 def main():
+    """CLI: train the YOLOv8 particle detector."""
     ap = argparse.ArgumentParser(description="Train YOLO detection on GPU with sm_120a stability guards.")
     ap.add_argument("--model", default="yolov8s.pt", help="Base weights (e.g. yolov8s.pt, yolov8n.pt).")
     ap.add_argument("--data", default=str(DATA_YAML), help="Path to data.yaml.")

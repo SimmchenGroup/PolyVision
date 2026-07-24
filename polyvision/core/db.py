@@ -73,18 +73,21 @@ CREATE TABLE IF NOT EXISTS splits (
 
 
 def configure(db_path: str | Path) -> None:
+    """Set the SQLite database path for this process."""
     global _DB_PATH
     _DB_PATH = Path(db_path)
     _init_db()
 
 
 def _get_db_path() -> Path:
+    """Return the configured database path (or the built-in default)."""
     if _DB_PATH is not None:
         return _DB_PATH
     return Path(__file__).parent.parent.parent / "data" / "polyvision.db"
 
 
 def _conn() -> sqlite3.Connection:
+    """Open a connection to the SQLite database."""
     conn = sqlite3.connect(str(_get_db_path()))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -93,6 +96,7 @@ def _conn() -> sqlite3.Connection:
 
 
 def _init_db() -> None:
+    """Create the database tables if they do not already exist."""
     _get_db_path().parent.mkdir(parents=True, exist_ok=True)
     with _conn() as conn:
         conn.executescript(SCHEMA)
@@ -109,16 +113,19 @@ def _init_db() -> None:
 # ── hashing helpers ───────────────────────────────────────────────────────────
 
 def _file_hash(path: str | Path) -> str:
+    """Content hash of a file, used for image identity/provenance."""
     return hashlib.md5(Path(path).read_bytes()).hexdigest()
 
 
 def _params_hash(*args) -> str:
+    """Stable hash of a parameter dict (keys cached detections by their settings)."""
     return hashlib.md5(
         json.dumps(args, sort_keys=True).encode()
     ).hexdigest()[:16]
 
 
 def _detection_params_hash(method: str, **kwargs) -> str:
+    """Parameter hash for a detection method and its settings."""
     return _params_hash(method, kwargs)
 
 
@@ -142,6 +149,7 @@ def get_or_create_image(path: str | Path, class_label: str | None = None,
 
 
 def mark_annotated(image_id: int, class_label: str) -> None:
+    """Mark an image as annotated with its class label."""
     with _conn() as conn:
         conn.execute(
             "UPDATE images SET status='annotated', class_label=?, annotated_at=? WHERE id=?",
@@ -150,6 +158,7 @@ def mark_annotated(image_id: int, class_label: str) -> None:
 
 
 def mark_skipped(image_id: int) -> None:
+    """Mark an image as skipped."""
     with _conn() as conn:
         conn.execute("UPDATE images SET status='skipped' WHERE id=?", (image_id,))
 
@@ -205,6 +214,7 @@ def cache_detections(image_id: int, method: str, bboxes: list, **params) -> int:
 
 
 def get_detection_id(image_id: int, method: str, **params) -> int | None:
+    """Return the detection-set id for an (image, method), if one exists."""
     ph = _detection_params_hash(method, **params)
     with _conn() as conn:
         row = conn.execute(
@@ -217,6 +227,7 @@ def get_detection_id(image_id: int, method: str, **params) -> int | None:
 # ── prediction cache ──────────────────────────────────────────────────────────
 
 def get_cached_predictions(detection_id: int, bbox_index: int) -> dict | None:
+    """Return cached predictions for a detection/bbox, if present."""
     with _conn() as conn:
         row = conn.execute(
             """SELECT local_probs, global_probs, yolo_probs, fusion_probs,
@@ -240,7 +251,9 @@ def cache_predictions(detection_id: int, bbox_index: int, *,
                       local_probs=None, global_probs=None, yolo_probs=None,
                       fusion_probs=None, final_class: int | None = None,
                       confidence: float | None = None) -> None:
+    """Store model predictions for a detection/bbox."""
     def _j(x):
+        """JSON-encode a value for storage in a text column."""
         return json.dumps(x.tolist() if hasattr(x, "tolist") else x) if x is not None else None
 
     with _conn() as conn:
@@ -267,6 +280,7 @@ def cache_predictions(detection_id: int, bbox_index: int, *,
 def record_crop(image_id: int, crop_path: str | Path,
                 bbox_rc: tuple, class_id: int,
                 manual_override: bool = False) -> None:
+    """Record an extracted crop (path, bbox, class) against its source image."""
     with _conn() as conn:
         conn.execute(
             """INSERT INTO crops (image_id, crop_path, bbox_rc, class_id, manual_override)
