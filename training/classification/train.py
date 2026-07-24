@@ -41,6 +41,7 @@ class CrashLogger:
     """
 
     def __init__(self, log_path: str, model_name: str, dataset_path: str, config):
+        """Initialise the per-run crash/telemetry logger."""
         self.log_path = log_path
         self._tmp_path = log_path + ".tmp"
         self._epoch_log_path = os.path.join(os.path.dirname(log_path), "epoch_log.csv")
@@ -77,6 +78,7 @@ class CrashLogger:
         self._write()
 
     def _gpu_mem(self):
+        """Current GPU memory usage (GB) for the log record."""
         if torch.cuda.is_available():
             used = torch.cuda.memory_allocated() / 1e9
             total = torch.cuda.get_device_properties(0).total_memory / 1e9
@@ -84,6 +86,7 @@ class CrashLogger:
         return None, None
 
     def _ram_gb(self):
+        """Current process RAM usage (GB) for the log record."""
         try:
             import psutil
             return round(psutil.Process().memory_info().rss / 1e9, 2)
@@ -91,6 +94,7 @@ class CrashLogger:
             return None
 
     def _write(self):
+        """Flush the accumulated log record to disk."""
         self._state["last_update"] = datetime.datetime.now().isoformat(timespec="seconds")
         self._state["elapsed_s"] = round(time.time() - self._t_start, 1)
         try:
@@ -102,6 +106,7 @@ class CrashLogger:
 
     def update_batch(self, epoch: int, batch: int, n_batches: int,
                      loss: float, acc: float):
+        """Record per-batch progress (loss/accuracy) in the log."""
         now = time.time()
         gpu_used, gpu_total = self._gpu_mem()
         self._state.update({
@@ -121,6 +126,7 @@ class CrashLogger:
 
     def update_epoch(self, epoch: int, train_loss: float, train_acc: float,
                      val_loss: float, val_acc: float):
+        """Record end-of-epoch train/val loss and accuracy in the log."""
         self._state.update({
             "status": "epoch_complete",
             "epoch": epoch,
@@ -147,16 +153,19 @@ class CrashLogger:
             pass
 
     def crash(self, exc: Exception):
+        """Record a crash with its exception and a best-effort cause classification."""
         self._state["status"] = "CRASHED"
         self._state["error"] = f"{type(exc).__name__}: {exc}"
         self._write()
 
     def complete(self):
+        """Mark the run complete and write the final log."""
         self._state["status"] = "completed"
         self._write()
 
 
 def _get_device():
+    """Return the training device (CUDA if available, else CPU)."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -173,8 +182,10 @@ def _attach_sync_hooks(model: nn.Module) -> list:
     """
     handles = []
     def _sync_fwd(module, inp, out):
+        """Forward hook that synchronises CUDA so errors surface at the true op (debugging)."""
         torch.cuda.synchronize()
     def _sync_bwd(module, grad_in, grad_out):
+        """Backward hook that synchronises CUDA so errors surface at the true op (debugging)."""
         torch.cuda.synchronize()
     for m in model.modules():
         if isinstance(m, nn.Conv2d):

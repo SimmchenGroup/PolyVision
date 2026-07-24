@@ -65,6 +65,7 @@ def _auto_find_dataset() -> str:
 
 
 def _auto_find_ckpt(ckpt: str) -> str:
+    """Resolve the checkpoint path, auto-locating best_model.pt if a directory is given."""
     if ckpt:
         return ckpt
     hits = (glob.glob("/kaggle/input/**/best_model.pt", recursive=True)
@@ -92,6 +93,7 @@ def _parse_args():
 
 
 def main():
+    """CLI: resume fine-tuning the Local model from a checkpoint."""
     args = _parse_args()
     data_root = _auto_find_dataset() if not args.data_root else args.data_root
     ckpt = _auto_find_ckpt(args.ckpt)

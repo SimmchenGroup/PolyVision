@@ -25,6 +25,7 @@ from sklearn.calibration import calibration_curve
 import seaborn as sns
 
 def plot_training_history(history, save_path=None, show=False):
+    """Plot train/val accuracy and loss curves from an in-memory history dict."""
     h = history.history
 
     acc = h.get("accuracy", h.get("acc"))
@@ -65,6 +66,7 @@ def plot_training_history(history, save_path=None, show=False):
     plt.close()
 
 def plot_training_history_csv(csv_path, save_path=None, show=False):
+    """Plot train/val accuracy and loss curves from a saved history CSV."""
     df = pd.read_csv(csv_path)
 
     epochs = range(1, len(df) + 1)

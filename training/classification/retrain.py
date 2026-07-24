@@ -16,10 +16,12 @@ from torch.utils.data import DataLoader
 
 
 def _get_device():
+    """Return the training device (CUDA if available, else CPU)."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def _write_history_csv(history: dict, out_csv_path: str | Path) -> None:
+    """Write per-epoch training history to a CSV file."""
     out_csv_path = Path(out_csv_path)
     out_csv_path.parent.mkdir(parents=True, exist_ok=True)
     keys = [k for k in history if k != "epoch"]
@@ -45,6 +47,7 @@ def _run_one_phase(
     mode: str = "max",
     device=None,
 ) -> dict:
+    """Run one training phase (given #epochs) and return its per-epoch history."""
     if device is None:
         device = _get_device()
 
@@ -56,6 +59,7 @@ def _run_one_phase(
     best_epoch = 0
 
     def _is_better(new, old):
+        """True if the new metric value improves on the old (used for checkpoint selection)."""
         return new > old if mode == "max" else new < old
 
     for epoch in range(1, epochs + 1):
@@ -167,6 +171,7 @@ def load_and_retrain(
     monitor: str = "val_accuracy",
     mode: str = "max",
 ):
+    """Restore a checkpoint (model + optimiser) and continue training for more phases/epochs."""
     device = _get_device()
     loaded = torch.load(model_path, map_location=device, weights_only=False)
     if isinstance(loaded, dict):

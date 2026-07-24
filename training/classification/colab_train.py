@@ -46,6 +46,7 @@ WORK       = "/content/polyvision"                    # local SSD workspace (fas
 os.makedirs(WORK, exist_ok=True)
 
 def _unzip(zip_name, dest):
+    """Extract a zip archive into `dest`."""
     src = os.path.join(DRIVE_ROOT, zip_name)
     assert os.path.exists(src), f"missing on Drive: {src}"
     print(f"[unzip] {src} -> {dest}")
@@ -104,6 +105,7 @@ DRIVE_RESULTS = f"{DRIVE_ROOT}/results/{DATASET}"
 from training.classification.config import ExperimentConfig
 
 def make_config(model_name: str) -> ExperimentConfig:
+    """Build the ExperimentConfig used for the Colab training runs (the paper's settings)."""
     return ExperimentConfig(
         training_type="microplastic",
         learning_rate=1e-5,                       # overridden per-backbone in build_model()

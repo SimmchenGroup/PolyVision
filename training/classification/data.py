@@ -26,6 +26,7 @@ _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp"
 _CORRUPT_PLACEHOLDER: Image.Image | None = None
 
 def _get_placeholder() -> Image.Image:
+    """Return a small blank placeholder image used when a file fails to load."""
     global _CORRUPT_PLACEHOLDER
     if _CORRUPT_PLACEHOLDER is None:
         _CORRUPT_PLACEHOLDER = Image.new("RGB", (4, 4), color=(128, 128, 128))
@@ -33,6 +34,7 @@ def _get_placeholder() -> Image.Image:
 
 
 def _load_image_inner(path: str) -> Image.Image:
+    """Load and decode one image (inner worker for the crash-safe loader)."""
     if not path.lower().endswith((".tif", ".tiff")):
         return Image.open(path).convert("RGB")
     img = Image.open(path)
@@ -61,6 +63,7 @@ def _tif_safe_loader(path: str) -> Image.Image:
     """
     if _HAS_SIGALRM:
         def _handler(signum, frame):
+            """Timeout signal handler that raises so a hung image load can be interrupted."""
             raise TimeoutError(f"image load blocked >{_LOAD_TIMEOUT_S}s")
         old = signal.signal(signal.SIGALRM, _handler)
         signal.alarm(_LOAD_TIMEOUT_S)
@@ -105,6 +108,7 @@ _INCEPTION_STD  = [0.5, 0.5, 0.5]
 
 
 def _train_val_dirs(config):
+    """Resolve the train/ and val/ dataset directories from config."""
     base_dir = config.base_dirs[config.training_type]
     train_base = getattr(config, "train_base_dir_override", None) or base_dir
     train_dir = os.path.join(train_base, "train")
@@ -117,6 +121,7 @@ def _train_val_dirs(config):
 
 
 def count_images_in_directory(root_dir: str) -> int:
+    """Count image files under root_dir (recursively)."""
     total = 0
     for _, _, filenames in os.walk(root_dir):
         for fn in filenames:
@@ -126,6 +131,7 @@ def count_images_in_directory(root_dir: str) -> int:
 
 
 def compute_steps_per_epoch(config) -> int:
+    """Steps per epoch = ceil(train image count / batch size)."""
     train_dir, _ = _train_val_dirs(config)
     n_train = count_images_in_directory(train_dir)
     bs = int(config.batch_size)
@@ -137,6 +143,7 @@ def compute_steps_per_epoch(config) -> int:
 
 
 def get_classes(config):
+    """Return the ordered class-name list for the dataset."""
     if config.training_type == "microplastic":
         return config.microplastic_classes
     elif config.training_type == "whisky":
@@ -160,6 +167,7 @@ def _get_model_io(model_name: str):
 
 
 def _make_transforms(image_size, mean, std, augment: bool = False):
+    """Build the torchvision transform pipeline: resize + normalise, plus flips/rotation/jitter when augment=True."""
     h, w = image_size
     if augment:
         # Microplastic orientation is arbitrary, so flips/rotations add free
@@ -300,6 +308,7 @@ def get_generators(config, model_name=None, augment_minority=True):
 
 
 def get_test_generator(config, model_name=None):
+    """Build the unaugmented test-set DataLoader for the given backbone."""
     model_name = (model_name or getattr(config, "model_name", "inception")).lower().strip()
     image_size, mean, std = _get_model_io(model_name)
     base_dir = config.base_dirs[config.training_type]

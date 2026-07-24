@@ -31,6 +31,7 @@ from .gradcam import render_gradcam_for_path, find_last_conv_layer
 
 
 def _get_device():
+    """Return the training device (CUDA if available, else CPU)."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -49,6 +50,7 @@ def _attach_sync_hooks(model: nn.Module) -> list:
     """
     handles = []
     def _sync(module, inp, out):
+        """Forward hook that synchronises CUDA so errors surface at the true op (debugging)."""
         torch.cuda.synchronize()
     for m in model.modules():
         if isinstance(m, nn.Conv2d):
@@ -68,6 +70,7 @@ def _attach_sync_hooks_bwd(model: nn.Module) -> list:
     """
     handles = []
     def _sync_bwd(module, grad_in, grad_out):
+        """Backward hook that synchronises CUDA so errors surface at the true op (debugging)."""
         torch.cuda.synchronize()
     for m in model.modules():
         if isinstance(m, nn.Conv2d):
@@ -180,6 +183,7 @@ def _predict_loader(model: nn.Module, loader: DataLoader, device=None):
 # ---------------------------------------------------------------------------
 
 def _save_confusion_matrix(cm, class_names, out_png_path, title="Confusion Matrix"):
+    """Render and save a confusion-matrix heatmap PNG."""
     plt.figure(figsize=(12, 10))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
     disp.plot(cmap="Blues", values_format="d")
@@ -212,6 +216,7 @@ def run_post_analysis(
         pred_max_batches=None,
         cm_gen=None,     # DataLoader (test) or None → uses val_gen
 ):
+    """Run post-training diagnostics (curves, confusion matrix, per-class metrics) and write them to the run directory."""
     os.makedirs(run_dir, exist_ok=True)
     device = _get_device()
 
@@ -350,6 +355,7 @@ def run_post_analysis(
 # ---------------------------------------------------------------------------
 
 def get_next_version(save_path, prefix="v"):
+    """Return the next auto-incremented version folder name (e.g. v1.20)."""
     if not os.path.exists(save_path):
         return f"{prefix}1.0"
     versions = []
@@ -390,6 +396,7 @@ def run_full_experiment(
     class_weighted_loss: bool = False,
     label_smoothing: float = 0.0,
 ):
+    """Run a complete two-phase training experiment end to end and save all artefacts (model, history, metadata, diagnostics)."""
     classes = get_classes(config)
     balance_mode = (balance_mode or "none").strip().lower()
     if balance_mode not in {"none", "balanced"}:
@@ -526,6 +533,7 @@ def run_full_experiment(
 
 
 def analyze_only(config: ExperimentConfig, model_path: str, version: str | None = None):
+    """Load a saved model and run layer/usage diagnostics without training."""
     device = _get_device()
     model = torch.load(model_path, map_location=device, weights_only=False)
 

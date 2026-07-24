@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 
 def compute_particle_area(filepaths, image_size):
+    """Measure each crop's foreground particle area (pixels) from its file."""
     areas = []
 
     for path in filepaths:
@@ -20,7 +21,9 @@ def compute_particle_area(filepaths, image_size):
     return np.array(areas)
 
 def compute_confidence(predictions):
+    """Extract the max-softmax confidence for each prediction."""
     return np.max(predictions, axis=1)
 
 def compute_correlation(x, y):
+    """Pearson correlation between two arrays (e.g. particle size vs confidence)."""
     return np.corrcoef(x, y)[0, 1]

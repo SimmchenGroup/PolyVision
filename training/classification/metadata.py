@@ -14,6 +14,7 @@ import sys
 import datetime as _dt
 
 def _jsonable(x: Any) -> Any:
+    """Coerce a value into a JSON-serialisable form."""
     if is_dataclass(x):
         return asdict(x)
     if isinstance(x, Path):
@@ -25,6 +26,7 @@ def _jsonable(x: Any) -> Any:
     return x
 
 def _write_text(path: Path, text: str) -> None:
+    """Write text to a file (utf-8)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
 

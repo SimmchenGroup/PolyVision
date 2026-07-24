@@ -8,6 +8,7 @@ import numpy as np
 
 def analyze_layer_usage(model, generator, layer_name, max_batches=10):
     # Layer analysis not yet migrated to PyTorch — raises informative error
+    """Collect activation statistics for a named layer over a number of batches."""
     raise NotImplementedError(
         "analyze_layer_usage requires PyTorch hook-based rewrite. "
         "Use Grad-CAM from gradcam.py for activation visualisation."
@@ -40,6 +41,7 @@ def analyze_layer_usage(model, generator, layer_name, max_batches=10):
     }
 
 def summarize_layer_usage(layer_usage, threshold=0.01):
+    """Summarise layer-usage stats, flagging neurons whose activity falls below a threshold."""
     mean_activations = layer_usage['mean_activation']
     return {
         "near_zero": int((mean_activations < threshold).sum()),

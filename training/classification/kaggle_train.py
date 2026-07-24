@@ -80,6 +80,7 @@ print("  classes:", sorted(os.listdir(os.path.join(DATA_ROOT, "train"))))
 from training.classification.config import ExperimentConfig
 
 def make_config(model_name: str) -> ExperimentConfig:
+    """Build the ExperimentConfig used for the Kaggle training runs."""
     return ExperimentConfig(
         training_type="microplastic",
         learning_rate=1e-5,                       # overridden per-backbone in build_model()
