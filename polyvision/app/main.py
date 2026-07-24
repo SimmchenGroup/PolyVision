@@ -131,6 +131,7 @@ def extract_particle_crops(
         out_dir: str | Path = ".",
         base_name: str = "image"
 ):
+    """Extract square particle crops from a binary mask; returns crop metadata including normalised YOLO boxes."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -172,6 +173,7 @@ def extract_particle_crops(
 
 
 def extract_particle_crops_yolo(img, boxes, margin=0, out_dir=".", base_name="image"):
+    """Extract square particle crops from YOLO detection boxes; returns crop metadata."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -329,6 +331,7 @@ class ProcessThread(QThread):
     finished_ok = pyqtSignal(int)
 
     def __init__(self, in_dir, out_root, raw_out, object_class_id, min_area, margin, use_yolo, yolo_detector=None):
+        """Set up the background processing thread with input/output paths and options."""
         super().__init__()
         self.in_dir = Path(in_dir)
         self.out_root = Path(out_root)
@@ -340,6 +343,7 @@ class ProcessThread(QThread):
         self.yolo_detector = yolo_detector
 
     def run(self):
+        """Thread body: crop and label every image in the input folder, emitting progress signals."""
         exts = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
 
         imgs = []
@@ -390,6 +394,7 @@ class DrawableGraphicsView(QGraphicsView):
     zoomChanged = pyqtSignal(float)  # emits current view scale after a zoom/fit change
 
     def __init__(self, *args, **kwargs):
+        """Initialise the drawable graphics view (draw/delete modes off, zoom bounds set)."""
         super().__init__(*args, **kwargs)
         self._draw_mode = False
         self._dragging = False
@@ -409,6 +414,7 @@ class DrawableGraphicsView(QGraphicsView):
 
     # ---- zoom helpers ----
     def current_scale(self) -> float:
+        """Current view zoom scale factor."""
         return float(self.transform().m11())
 
     def is_zoomed(self) -> bool:
@@ -416,6 +422,7 @@ class DrawableGraphicsView(QGraphicsView):
         return self.current_scale() > self._fit_scale * 1.05
 
     def _apply_scale(self, factor: float):
+        """Scale the view by factor, clamped to sensible zoom bounds."""
         scale = self.current_scale() * factor
         scale = max(self._min_scale, min(self._max_scale, scale))
         cur = self.current_scale()
@@ -428,6 +435,7 @@ class DrawableGraphicsView(QGraphicsView):
         self.zoomChanged.emit(self.current_scale())
 
     def zoom_by(self, factor: float):
+        """Zoom the view by a multiplicative factor."""
         self._apply_scale(factor)
 
     def fit_view(self):
@@ -444,11 +452,13 @@ class DrawableGraphicsView(QGraphicsView):
 
     def wheelEvent(self, event):
         # Wheel zoom, anchored under the mouse. Works in every tool.
+        """Zoom in/out on mouse-wheel scroll."""
         factor = 1.15 if event.angleDelta().y() > 0 else 1.0 / 1.15
         self._apply_scale(factor)
         event.accept()
 
     def set_draw_mode(self, enabled: bool):
+        """Enable or disable box-drawing mode."""
         self._draw_mode = bool(enabled)
         if not self._draw_mode:
             self._clear_rubber()
@@ -460,6 +470,7 @@ class DrawableGraphicsView(QGraphicsView):
             self._clear_rubber()
 
     def _clear_rubber(self):
+        """Remove the current rubber-band rectangle."""
         self._dragging = False
         self._start_scene = None
         self._draw_right_delete = False
@@ -487,6 +498,7 @@ class DrawableGraphicsView(QGraphicsView):
             ))
 
     def _begin_rubber(self, event, color):
+        """Start a rubber-band rectangle at the click position."""
         self._dragging = True
         self._start_scene = self.mapToScene(event.pos())
         if self._rubber_item is None:
@@ -501,6 +513,7 @@ class DrawableGraphicsView(QGraphicsView):
 
     def mousePressEvent(self, event):
         # Delete mode: start a selection rubber band (release decides click vs region)
+        """Mouse-press: start drawing/deleting a box, or fall back to panning."""
         if self._delete_click_mode and event.button() == Qt.LeftButton:
             self._begin_rubber(event, "#ff3333")
             event.accept()
@@ -521,6 +534,7 @@ class DrawableGraphicsView(QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
+        """Mouse-move: update the active rubber-band rectangle."""
         if (self._draw_mode or self._delete_click_mode) and self._dragging \
                 and self._rubber_item is not None and self._start_scene is not None:
             cur = self.mapToScene(event.pos())
@@ -532,6 +546,7 @@ class DrawableGraphicsView(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         # Delete mode release: tiny drag -> single-click delete, else region delete
+        """Mouse-release: finalise the drawn box or the delete action."""
         if self._delete_click_mode and self._dragging and event.button() == Qt.LeftButton:
             self._finish_delete(event)
             event.accept()
@@ -586,6 +601,7 @@ class SpinningWheel(QWidget):
     landed = pyqtSignal(int)
 
     def __init__(self, segments, parent=None):
+        """Initialise the weighted spinning-wheel widget with its segments."""
         super().__init__(parent)
         self.rotation = 0.0             # current rotation, degrees clockwise from top
         self.setMinimumSize(300, 300)
@@ -613,9 +629,11 @@ class SpinningWheel(QWidget):
             acc += span
 
     def is_spinning(self) -> bool:
+        """True while the wheel is animating."""
         return self._spinning
 
     def _pick_weighted(self) -> int:
+        """Pick a landing segment at random, weighted by segment probability."""
         r = random.uniform(0.0, self._total_w)
         acc = 0.0
         for i, (_, _, w) in enumerate(self.segments):
@@ -648,6 +666,7 @@ class SpinningWheel(QWidget):
         self._anim.start(16)
 
     def _tick(self):
+        """Advance the spin animation by one frame."""
         self._elapsed += 16
         t = min(1.0, self._elapsed / self._duration)
         eased = 1.0 - (1.0 - t) ** 3  # ease-out cubic
@@ -661,6 +680,7 @@ class SpinningWheel(QWidget):
             self.landed.emit(self._winner)
 
     def paintEvent(self, event):
+        """Draw the wheel and its coloured segments."""
         if not self.segments:
             return
         p = QPainter(self)
@@ -733,6 +753,7 @@ class RewardDialog(QDialog):
 
     def __init__(self, break_minutes: int, milestone_pct: int,
                  break_prob: float, parent=None):
+        """Build the reward dialog (break timer plus reward wheel)."""
         super().__init__(parent)
         self.break_minutes = max(1, int(break_minutes))
         self.setWindowTitle("Productivity Reward")
@@ -811,6 +832,7 @@ class RewardDialog(QDialog):
         self._autospun = False
 
     def showEvent(self, event):
+        """Start the wheel spin when the dialog is shown."""
         super().showEvent(event)
         if not self._autospun:
             self._autospun = True
@@ -818,6 +840,7 @@ class RewardDialog(QDialog):
 
     # --- main wheel ---
     def _on_main_landed(self, index: int):
+        """Handle the main wheel landing on a segment."""
         label = self.main_wheel.segments[index][0]
         if label == "Break":
             self.got_break = True
@@ -833,11 +856,13 @@ class RewardDialog(QDialog):
 
     # --- break / reward wheel ---
     def _start_countdown(self):
+        """Start the break countdown timer."""
         self._remaining = self.break_minutes * 60
         self._update_timer_label()
         self._countdown.start(1000)
 
     def _tick_countdown(self):
+        """Advance the break countdown by one second."""
         self._remaining -= 1
         if self._remaining <= 0:
             self._remaining = 0
@@ -847,10 +872,12 @@ class RewardDialog(QDialog):
         self._update_timer_label()
 
     def _update_timer_label(self):
+        """Update the countdown timer label."""
         m, s = divmod(max(0, self._remaining), 60)
         self.timer_label.setText(f"⏳ {m:02d}:{s:02d}")
 
     def _on_reward_landed(self, index: int):
+        """Handle the reward wheel landing on a segment."""
         reward = self.reward_wheel.segments[index][0]
         self.break_box.setTitle(f"Break time! Reward: {reward}")
 
@@ -1077,18 +1104,22 @@ class ToggleSwitch(QCheckBox):
     """
 
     def __init__(self, *args, **kwargs):
+        """Initialise the toggle-switch checkbox widget."""
         super().__init__(*args, **kwargs)
         self.setText("")
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(44, 24)
 
     def sizeHint(self):
+        """Preferred size of the toggle switch."""
         return QSize(44, 24)
 
     def hitButton(self, pos):
+        """Treat the whole widget rectangle as the clickable button."""
         return self.rect().contains(pos)
 
     def paintEvent(self, event):
+        """Draw the toggle switch in its current on/off state."""
         c = _ACTIVE
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
@@ -1120,6 +1151,7 @@ class ImagePreview(QMainWindow):
                  microplastic_classes=None,
                  yolo_detector: YoloDetector | None = None,
                  dataset_root=None):
+        """Build the main annotation window and load the first image."""
         super().__init__(parent)
         self.object_class_id = object_class_id
         self.dataset_root = Path(dataset_root) if dataset_root is not None else None
@@ -1209,6 +1241,7 @@ class ImagePreview(QMainWindow):
 
         # ---- local layout helpers ----
         def _card(title, hint=None):
+            """Build a titled card frame grouping a panel's widgets."""
             frame = QFrame()
             frame.setObjectName("card")
             lay = QVBoxLayout(frame)
@@ -1229,6 +1262,7 @@ class ImagePreview(QMainWindow):
             return frame, lay
 
         def _slider_row(caption, hint, slider, value_label):
+            """Build a labelled slider row with a live value label."""
             box = QVBoxLayout()
             box.setContentsMargins(0, 0, 0, 0)
             box.setSpacing(6)
@@ -1245,6 +1279,7 @@ class ImagePreview(QMainWindow):
             return box
 
         def _switch_row(caption, switch, sub=None):
+            """Build a labelled toggle-switch row."""
             row = QHBoxLayout()
             row.setContentsMargins(0, 0, 0, 0)
             row.addWidget(QLabel(caption))
@@ -1843,9 +1878,11 @@ class ImagePreview(QMainWindow):
     # === GUI REDESIGN: theme, tools, zoom/pan, folder picker ===
     # ==================================================================
     def _theme(self) -> dict:
+        """Return the active theme's colour tokens."""
         return THEMES[self.current_theme]
 
     def _dot_icon(self, color_hex: str, size: int = 12) -> QIcon:
+        """Return a small round colour-swatch QIcon of the given hex colour."""
         pm = QPixmap(size, size)
         pm.fill(Qt.transparent)
         p = QPainter(pm)
@@ -1890,12 +1927,14 @@ class ImagePreview(QMainWindow):
         self.update()
 
     def toggle_theme(self):
+        """Switch between the light and dark themes."""
         self.current_theme = "light" if self.current_theme == "dark" else "dark"
         self.apply_theme()
         # Overlay colours / list rows depend on theme; redraw them.
         self.update_display()
 
     def _refresh_triage_badge(self):
+        """Update the triage-status badge."""
         if not hasattr(self, "triage_badge"):
             return
         c = self._theme()
@@ -1914,6 +1953,7 @@ class ImagePreview(QMainWindow):
         )
 
     def _refresh_topbar(self):
+        """Update the top-bar filename/info labels."""
         if not hasattr(self, "filename_label"):
             return
         total = len(self.img_paths)
@@ -1925,6 +1965,7 @@ class ImagePreview(QMainWindow):
 
     # ---- tool tabs (drive the existing draw/delete checkboxes) ----
     def set_tool(self, tool: str):
+        """Switch the active tool (select / draw / delete)."""
         if tool == "select":
             self.draw_mode_checkbox.setChecked(False)
             self.delete_click_mode_checkbox.setChecked(False)
@@ -1937,6 +1978,7 @@ class ImagePreview(QMainWindow):
         self._sync_tool_tabs()
 
     def _sync_tool_tabs(self):
+        """Sync the tool toggle checkboxes with the active tool."""
         if self.draw_mode_checkbox.isChecked():
             self.current_tool = "draw"
         elif self.delete_click_mode_checkbox.isChecked():
@@ -1959,6 +2001,7 @@ class ImagePreview(QMainWindow):
             self.right_preview_view.setDragMode(QGraphicsView.NoDrag)
 
     def _sync_method_buttons(self):
+        """Sync the segmentation-method buttons with the active method."""
         for val, b in getattr(self, "_method_buttons", {}).items():
             b.blockSignals(True)
             b.setChecked(val == self.method)
@@ -1966,20 +2009,25 @@ class ImagePreview(QMainWindow):
 
     # ---- zoom / pan ----
     def zoom_in(self):
+        """Zoom the preview in."""
         self.right_preview_view.zoom_by(1.25)
 
     def zoom_out(self):
+        """Zoom the preview out."""
         self.right_preview_view.zoom_by(1.0 / 1.25)
 
     def zoom_fit(self):
+        """Fit the whole image in the preview."""
         self._needs_fit = False
         self.right_preview_view.fit_view()
 
     def _on_zoom_changed(self, scale: float):
+        """Handle a zoom change: update the zoom label."""
         self._update_zoom_label(scale)
         self._update_drag_mode()
 
     def _update_zoom_label(self, scale=None):
+        """Update the zoom-percentage label."""
         if not hasattr(self, "zoom_label"):
             return
         if scale is None:
@@ -1989,6 +2037,7 @@ class ImagePreview(QMainWindow):
 
     # ---- working-folder picker ----
     def on_pick_folder(self):
+        """Choose the working (raw images) folder."""
         start = str(self.working_folder) if self.working_folder else ""
         d = QFileDialog.getExistingDirectory(self, "Open working folder", start)
         if not d:
@@ -2016,18 +2065,22 @@ class ImagePreview(QMainWindow):
 
     # ---- canvas toolbar toggles ----
     def on_binary_mask_toggled(self, state):
+        """Toggle showing the binary segmentation mask instead of the image."""
         self.binary_view = (state == Qt.Checked)
         self.update_display()
 
     # ---- top-bar Save / Skip (reuse the keyboard workflow verbatim) ----
     def _save_and_next(self):
+        """Accept the current image and advance to the next (Enter)."""
         self.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier))
 
     def _skip(self):
+        """Skip the current image (Escape)."""
         self.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Escape, Qt.NoModifier))
 
     # ---- detections list per-row delete ----
     def _delete_bbox_index(self, i: int):
+        """Delete the bounding box at the given index."""
         if 0 <= i < len(getattr(self, "bbox_list", [])):
             bbox = self.bbox_list[i]
             self.deleted_bboxes.add(bbox)
@@ -2037,6 +2090,7 @@ class ImagePreview(QMainWindow):
             self.update_display()
 
     def _make_detection_row(self, i, text, conf_str, dot_color, is_suggested):
+        """Build a detection-list row widget for one box."""
         c = self._theme()
         w = QWidget()
         w.setStyleSheet("background: transparent;")
@@ -2066,6 +2120,7 @@ class ImagePreview(QMainWindow):
         return w
 
     def _position_log_chip(self):
+        """Reposition the floating log chip within the window."""
         if not hasattr(self, "log_label") or not hasattr(self, "right_preview_view"):
             return
         self.log_label.adjustSize()
@@ -2074,6 +2129,7 @@ class ImagePreview(QMainWindow):
         self.log_label.raise_()
 
     def resizeEvent(self, event):
+        """Re-fit the preview and reposition overlays on resize."""
         super().resizeEvent(event)
         if hasattr(self, "right_preview_view") and self.right_preview_view.scene() is not None:
             rect = self.right_preview_view.scene().sceneRect()
@@ -2253,6 +2309,7 @@ class ImagePreview(QMainWindow):
             item.setPen(QPen(QColor("#FF0000") if i == self.selected_bbox_idx else QColor("#00FF00"), 2))
 
     def on_scene_selection_changed(self):
+        """Handle box-selection changes in the image scene."""
         selected_items = self.right_preview_scene.selectedItems()
 
         if not selected_items:
@@ -2280,6 +2337,7 @@ class ImagePreview(QMainWindow):
         self.update_crop_preview()
 
     def _reset_per_image_state(self):
+        """Clear per-image state (boxes, selection, caches) before loading a new image."""
         self.user_bboxes.clear()
         self.suggested_bboxes.clear()
         self.deleted_bboxes.clear()
@@ -2293,6 +2351,7 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Image Loading --------------------
     def load_current_image(self):
+        """Load the current image, run segmentation/detection, and display it."""
         self.current_idx = max(0, min(self.current_idx, len(self.img_paths) - 1))
         self.img_name = self.img_paths[self.current_idx].name
 
@@ -2364,12 +2423,14 @@ class ImagePreview(QMainWindow):
     # -------------------- Controls --------------------
 
     def on_min_area_changed(self, val):
+        """Handle the minimum-particle-area slider change."""
         self.min_area_live = val
         if hasattr(self, "min_area_value_label"):
             self.min_area_value_label.setText(f"{val} px²")
         self.update_display()
 
     def on_otsu_offset_changed(self, val):
+        """Handle the Otsu-offset slider change."""
         self.otsu_offset = val
         self.otsu_input.setText(str(val))
         if hasattr(self, "thresh_value_label"):
@@ -2382,6 +2443,7 @@ class ImagePreview(QMainWindow):
         self.update_display()
 
     def on_otsu_input(self):
+        """Handle manual entry of the Otsu offset."""
         try:
             val = int(self.otsu_input.text())
             self.otsu_offset = val
@@ -2395,6 +2457,7 @@ class ImagePreview(QMainWindow):
             self.otsu_input.setText(str(self.otsu_offset))
 
     def on_method_changed(self, text):
+        """Handle the segmentation-method selection change."""
         self.method = text
         self._sync_method_buttons()
         # Invalidate cache for current image
@@ -2405,6 +2468,7 @@ class ImagePreview(QMainWindow):
         self.update_display()
 
     def on_yolo_toggled(self, state):
+        """Toggle using the YOLO detector for box proposals."""
         self.use_yolo = state == Qt.Checked
         key = self.img_paths[self.current_idx]
         if key in self.cached_binaries:
@@ -2420,6 +2484,7 @@ class ImagePreview(QMainWindow):
         self.update_display()
 
     def on_yolo_conf_changed(self, val):
+        """Handle the YOLO confidence-threshold slider change."""
         self.yolo_conf = round(val / 100.0, 2)
         self.yolo_conf_label.setText(f"{self.yolo_conf:.2f}")
         # Invalidate YOLO cache so results are re-run at the new threshold
@@ -2446,6 +2511,7 @@ class ImagePreview(QMainWindow):
         self.update_display()
 
     def on_min_area_input(self):
+        """Handle manual entry of the minimum particle area."""
         try:
             val = int(self.min_area_input.text())
             self.min_area_live = max(1, val)
@@ -2457,6 +2523,7 @@ class ImagePreview(QMainWindow):
             self.min_area_input.setText(str(self.min_area_live))
 
     def on_bbox_selected(self, idx):
+        """Handle selecting a box in the detection list."""
         if idx < 0 or idx >= len(getattr(self, "bbox_list", [])):
             self.selected_bbox_idx = -1
             self.selected_bbox_key = None
@@ -2470,6 +2537,7 @@ class ImagePreview(QMainWindow):
         self.update_crop_preview()
 
     def on_delete_bbox(self):
+        """Delete the currently selected bounding box."""
         if self.selected_bbox_key is None:
             return  # nothing selected
 
@@ -2482,11 +2550,13 @@ class ImagePreview(QMainWindow):
         self.update_display()
 
     def next_image(self):
+        """Advance to the next image."""
         if self.current_idx + 1 < len(self.img_paths):
             self.current_idx += 1
             self.load_current_image()
 
     def prev_image(self):
+        """Go back to the previous image."""
         if self.current_idx > 0:
             self.current_idx -= 1
             self.load_current_image()
@@ -2494,12 +2564,15 @@ class ImagePreview(QMainWindow):
     # -------------------- Productivity mode --------------------
 
     def on_productivity_toggled(self, enabled: bool):
+        """Enable or disable the productivity-reward feature."""
         self.productivity_enabled = bool(enabled)
 
     def on_reward_percent_changed(self, val: int):
+        """Handle the reward-probability slider change."""
         self.reward_percent = int(val)
 
     def on_break_minutes_changed(self, val: int):
+        """Handle the break-duration slider change."""
         self.break_minutes = int(val)
 
     def _register_completion(self):
@@ -2535,6 +2608,7 @@ class ImagePreview(QMainWindow):
     def _show_reward(self, milestone_pct: int):
         # Base break chance scales with progress-per-reward, plus an accumulating
         # bonus from prior no-breaks (pity timer).
+        """Show the reward dialog at a productivity milestone."""
         base_prob = self.reward_percent / 100.0
         break_prob = min(0.95, max(0.05, base_prob + self._break_bonus))
 
@@ -2549,6 +2623,7 @@ class ImagePreview(QMainWindow):
             self._break_bonus += self._break_bonus_step
 
     def on_class_changed(self, current, previous):
+        """Handle the active annotation class changing."""
         if current:
             self.object_class_id = int(current.data(Qt.UserRole))
             self.update_display()
@@ -2574,6 +2649,7 @@ class ImagePreview(QMainWindow):
         self.update_display()
 
     def on_bbox_label_toggle(self, state):
+        """Toggle drawing class labels on the boxes."""
         self.show_bbox_labels = state == Qt.Checked
         for text_item in self.text_items:
             text_item.setVisible(self.show_bbox_labels)
@@ -2713,6 +2789,7 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Caching helpers --------------------
     def get_current_binary(self):
+        """Return the cached binary mask for the current image (computing it if needed)."""
         key = self.img_paths[self.current_idx]
         if key in self.cached_binaries:
             return self.cached_binaries[key]
@@ -2743,6 +2820,7 @@ class ImagePreview(QMainWindow):
         return binary
 
     def get_yolo_results(self):
+        """Return the cached YOLO detections for the current image (computing them if needed)."""
         key = self.img_paths[self.current_idx]
         if key in self.cached_yolo:
             return self.cached_yolo[key]
@@ -2802,12 +2880,14 @@ class ImagePreview(QMainWindow):
         return float(best)
 
     def _class_name(self, cls_id: int) -> str:
+        """Return the class name for a class id."""
         for k, name in self.class_definitions:
             if k == cls_id:
                 return name
         return f"class_{cls_id}"
 
     def _class_color(self, cls_id: int) -> QColor:
+        """Return the overlay colour for a class id."""
         if cls_id < 0:
             return QColor("#aaaaaa")
         return self.class_palette[cls_id % len(self.class_palette)]
@@ -2834,10 +2914,12 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Particle areas --------------------
     def get_particle_areas(self, binary_raw):
+        """Return the particle areas from the current segmentation."""
         areas = [a for (_bbox, a) in self.get_current_regions() if a >= self.min_area_live]
         return np.asarray(areas)
 
     def _topk_str(self, probs: np.ndarray, k: int = 3) -> str:
+        """Format the top-k class probabilities as a string."""
         probs = np.asarray(probs).reshape(-1)
         if probs.size == 0:
             return "[]"
@@ -2849,6 +2931,7 @@ class ImagePreview(QMainWindow):
         return "[" + ", ".join(parts) + "]"
 
     def _prob_stats(self, probs: np.ndarray) -> str:
+        """Summary statistics (max, entropy) of a probability vector."""
         p = np.asarray(probs).reshape(-1)
         if p.size == 0:
             return "sum=nan max=nan second=nan"
@@ -2860,6 +2943,7 @@ class ImagePreview(QMainWindow):
 
     # -------------------- DISPLAY UPDATE --------------------
     def update_display(self):
+        """Redraw the preview: image/mask plus current boxes and overlays."""
         if self.current_img_gray is None:
             return
 
@@ -3275,6 +3359,7 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Dataset Reviewer --------------------
     def _open_dataset_reviewer(self):
+        """Open the Dataset Reviewer window on the current dataset."""
         dataset_root = getattr(self, "dataset_root", None)
         if dataset_root is None:
             # Try to resolve from config
@@ -3298,6 +3383,7 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Intervention tracking --------------------
     def _update_intervention_status(self):
+        """Refresh the annotation-intervention statistics display."""
         stats = db.intervention_stats()
         if stats["total"] == 0:
             return
@@ -3309,6 +3395,7 @@ class ImagePreview(QMainWindow):
 
     # -------------------- Keyboard navigation --------------------
     def keyPressEvent(self, event):
+        """Keyboard shortcuts: accept (Enter), skip (Escape), adjust params, switch tools."""
         key = event.key()
 
         # -------------------- YOLO confidence adjustment --------------------
@@ -3558,6 +3645,7 @@ class ImagePreview(QMainWindow):
 
 class MainWindow(QMainWindow):
     def __init__(self):
+        """Build the setup window (input/output pickers and run button)."""
         super().__init__()
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
@@ -3715,21 +3803,25 @@ class MainWindow(QMainWindow):
     # [rest of methods same: browse folders, start_processing, etc.]
 
     def browse_in_dir(self):
+        """Choose the input images folder."""
         d = QFileDialog.getExistingDirectory(self, "Select input folder")
         if d:
             self.in_dir_edit.setText(d)
 
     def browse_out_dir(self):
+        """Choose the output dataset folder."""
         d = QFileDialog.getExistingDirectory(self, "Select output folder")
         if d:
             self.out_dir_edit.setText(d)
 
     def browse_raw_dir(self):
+        """Choose the raw-image output folder."""
         d = QFileDialog.getExistingDirectory(self, "Select raw-out folder")
         if d:
             self.raw_dir_edit.setText(d)
 
     def start_processing(self):
+        """Launch the background processing thread on the chosen folders."""
         in_dir = self.in_dir_edit.text().strip()
         out_dir = self.out_dir_edit.text().strip()
         raw_dir = self.raw_dir_edit.text().strip()
@@ -3757,10 +3849,12 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def on_finished(self, n):
+        """Handle processing completion: re-enable the UI and report the count."""
         self.run_btn.setEnabled(True)
         self.status_label.setText(f"Finished. Processed {n} images.")
 
 def main() -> int:
+    """Launch the annotation application: load config-driven paths and run the PyQt event loop."""
     repo_root = Path(__file__).resolve().parents[3]  # PolyVision/ (adjust if needed)
 
     config_path = repo_root / "configs" / "config.json"
