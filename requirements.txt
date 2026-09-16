@@ -1,14 +1,13 @@
-﻿# PolyVision — core runtime dependencies (pinned to the versions in the PhD conda env,
+# PolyVision — core runtime dependencies (pinned to the versions in the PhD conda env,
 # Python 3.13, Windows 11). Regenerate pins with: pip list --format=freeze
 #
-# PyTorch/torchvision are CUDA 12.8 builds; on a CPU-only machine or another CUDA
-# version install them first from https://pytorch.org/get-started/locally/ and then
-# run: pip install -r requirements.txt
---extra-index-url https://download.pytorch.org/whl/cu128
+# torch/torchvision are the default PyPI builds (CPU on Windows/macOS, CUDA on Linux).
+# The GUI does not need a GPU. For a specific CUDA build install torch first from
+# https://pytorch.org/get-started/locally/ then run: pip install -r requirements.txt
 
 # Deep learning
-torch==2.11.0+cu128
-torchvision==0.26.0+cu128
+torch==2.11.0
+torchvision==0.26.0
 ultralytics==8.4.52
 tensorflow==2.21.0
 keras==3.14.1
