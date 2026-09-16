@@ -1,0 +1,40 @@
+﻿# PolyVision — core runtime dependencies (pinned to the versions in the PhD conda env,
+# Python 3.13, Windows 11). Regenerate pins with: pip list --format=freeze
+#
+# PyTorch/torchvision are CUDA 12.8 builds; on a CPU-only machine or another CUDA
+# version install them first from https://pytorch.org/get-started/locally/ and then
+# run: pip install -r requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# Deep learning
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+ultralytics==8.4.52
+tensorflow==2.21.0
+keras==3.14.1
+
+# Numerics / ML
+numpy==2.4.4
+pandas==3.0.3
+scipy==1.17.1
+scikit-learn==1.8.0
+scikit-image==0.26.0
+joblib==1.5.3
+
+# Imaging
+opencv-python==4.13.0.92
+pillow==12.2.0
+imageio==2.37.3
+
+# Plotting
+matplotlib==3.10.9
+seaborn==0.13.2
+
+# GUI (polyvision/app)
+PyQt5==5.15.11
+pyqtgraph==0.14.0
+
+# Utilities
+PyYAML==6.0.3
+tqdm==4.67.3
+psutil==7.2.2

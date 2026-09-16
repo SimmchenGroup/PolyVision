@@ -1,0 +1,10 @@
+﻿# PolyVision conda environment. Create with:  conda env create -f environment.yml
+# All Python packages are pip-installed; pins live in requirements.txt.
+name: PhD
+channels:
+  - defaults
+dependencies:
+  - python=3.13
+  - pip
+  - pip:
+      - -r requirements.txt
