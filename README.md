@@ -11,8 +11,8 @@ weighted late fusion:
 | Model | Backbone | Input | Role |
 |-------|----------|-------|------|
 | **Local**     | EfficientNet-B0 | single-particle crops | fine morphology, one vote per crop |
-| **Global**    | EfficientNet-B0 | whole micrograph      | field-level context |
-| **Detection** | YOLOv8s         | whole micrograph      | localises particles *and* votes per box |
+| **Global**    | EfficientNet-B0 | whole image           | field-level context |
+| **Detection** | YOLOv8s         | whole image           | localises particles *and* votes per box |
 
 The detector also produces the crops the Local model consumes, so one whole image
 flows through all three branches. Each branch outputs a probability vector over the
