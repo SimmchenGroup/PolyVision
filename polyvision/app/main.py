@@ -73,6 +73,11 @@ def triage_sort(img_paths: list) -> list:
     return sorted(img_paths, key=lambda p: rank.get(db.get_triage_by_path(p)[0], 2))
 
 
+# Detector shared by yolo_detect(); stays None when no weights file is available,
+# in which case every YOLO-dependent feature is disabled rather than fatal.
+yolo_model = None
+
+
 def yolo_detect(img_gray, conf=0.25, classes=None):
     """
     Returns:
@@ -82,6 +87,12 @@ def yolo_detect(img_gray, conf=0.25, classes=None):
         - cls_id: int
       results: ultralytics Results object
     """
+    if yolo_model is None:
+        raise RuntimeError(
+            "YOLO detection requested but no detector weights are loaded "
+            "(see models.yolo_weights in configs/config.json)."
+        )
+
     img_8 = ensure_8bit(img_gray)
     img_input = prepare_for_yolo(img_8)
 
@@ -1179,7 +1190,10 @@ class ImagePreview(QMainWindow):
         # Settings
         self.use_fusion = False
         self.use_fusion_active = False
-        self.use_yolo = use_yolo
+        # Without detector weights the app still runs; YOLO-based proposals are
+        # simply unavailable and the threshold methods are used instead.
+        self.yolo_available = yolo_detector is not None
+        self.use_yolo = bool(use_yolo) and self.yolo_available
         self.yolo_conf = 0.20
         self.min_area_live = min_area
         self.otsu_offset = 0
@@ -1392,6 +1406,13 @@ class ImagePreview(QMainWindow):
         self.yolo_conf_slider.setRange(1, 80)
         self.yolo_conf_slider.setValue(20)
         self.yolo_conf_slider.valueChanged.connect(self.on_yolo_conf_changed)
+
+        if not self.yolo_available:
+            _no_yolo_tip = "Detector weights not found — see models.yolo_weights in configs/config.json"
+            self.yolo_checkbox.setEnabled(False)
+            self.yolo_checkbox.setToolTip(_no_yolo_tip)
+            self.yolo_conf_slider.setEnabled(False)
+            self.yolo_conf_slider.setToolTip(_no_yolo_tip)
 
         self.fusion_checkbox = ToggleSwitch("Use Fusion (YOLO + Local + Global)")
         self.fusion_checkbox.setChecked(False)
@@ -2469,6 +2490,12 @@ class ImagePreview(QMainWindow):
 
     def on_yolo_toggled(self, state):
         """Toggle using the YOLO detector for box proposals."""
+        if not self.yolo_available:
+            self.yolo_checkbox.blockSignals(True)
+            self.yolo_checkbox.setChecked(False)
+            self.yolo_checkbox.blockSignals(False)
+            self.use_yolo = False
+            return
         self.use_yolo = state == Qt.Checked
         key = self.img_paths[self.current_idx]
         if key in self.cached_binaries:
@@ -3554,6 +3581,8 @@ class ImagePreview(QMainWindow):
 
         # -------------------- Toggle YOLO --------------------
         elif key == ord('M'):
+            if not self.yolo_available:
+                return
             self.use_yolo = not self.use_yolo
             self.yolo_checkbox.setChecked(self.use_yolo)
             self.update_display()
@@ -3868,12 +3897,18 @@ def main() -> int:
     # GUI redesign: theme-token driven stylesheet (dark by default).
     app.setStyleSheet(build_stylesheet(THEMES["dark"]))
 
-    # Prefer config paths, not hard-coded absolute paths
-    yolo = YoloDetector(
-        model_path=str((repo_root / config["models"]["yolo_weights"]).resolve()),
-        device=config.get("models", {}).get("device", "cpu"),
-        imgsz=int(config.get("models", {}).get("imgsz", 800)),
-    )
+    # Prefer config paths, not hard-coded absolute paths. Missing weights are not
+    # fatal — the app runs with the detector disabled.
+    _weights = (repo_root / config["models"]["yolo_weights"]).resolve()
+    if _weights.exists():
+        yolo = YoloDetector(
+            model_path=str(_weights),
+            device=config.get("models", {}).get("device", "cpu"),
+            imgsz=int(config.get("models", {}).get("imgsz", 800)),
+        )
+    else:
+        print(f"⚠ YOLO disabled: detector weights not found: {_weights}")
+        yolo = None
 
     # TODO: pass `yolo` into your ImagePreview instead of using global yolo_model
     # previewer = ImagePreview(..., yolo_detector=yolo, microplastic_classes=microplastic_classes)
@@ -3921,9 +3956,11 @@ if __name__ == "__main__":
     # from config ("models.yolo"/"models.yolo_weights") relative to the repo root.
     with open(repo_root / "configs" / "config.json", "r", encoding="utf-8") as _cf:
         _models_cfg = json.load(_cf).get("models", {})
+    # Missing weights are not fatal: yolo_model stays None and every YOLO-driven
+    # feature is disabled, leaving Otsu/adaptive annotation fully usable.
     YOLO_MODEL_PATH = str(resolve_repo_path(
         repo_root, _models_cfg.get("yolo") or _models_cfg.get("yolo_weights", "models/detect/best.pt")))
-    yolo_model = YOLO(YOLO_MODEL_PATH)
+    yolo_model = YOLO(YOLO_MODEL_PATH) if Path(YOLO_MODEL_PATH).exists() else None
 
     with open(repo_root / "configs" / "config.json", "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -3941,11 +3978,16 @@ if __name__ == "__main__":
     print(f"[paths] local_classifier = {local_model_path}")
     print(f"[paths] global_classifier= {global_model_path}")
 
-    if not yolo_weights_path.exists():
-        raise FileNotFoundError(f"YOLO weights not found: {yolo_weights_path}")
+    yolo_available = yolo_weights_path.exists()
+    if not yolo_available:
+        print(f"⚠ YOLO disabled: detector weights not found: {yolo_weights_path}")
+        print("  Annotation still works via Otsu/adaptive thresholding and manual boxes.")
 
     # Optional but recommended: sanity checks before enabling fusion
     enable_fusion = bool(models_cfg.get("enable_fusion", False))
+    if enable_fusion and not yolo_available:
+        print("⚠ Fusion disabled: it needs the YOLO detector.")
+        enable_fusion = False
     if enable_fusion:
         if not local_model_path.exists():
             print(f"⚠ Fusion disabled: local model not found: {local_model_path}")
@@ -3965,7 +4007,7 @@ if __name__ == "__main__":
         model_path=str(yolo_weights_path),
         device=models_cfg.get("device", "cpu"),
         imgsz=int(models_cfg.get("imgsz", 800)),
-    )
+    ) if yolo_available else None
 
     # Input / output folders are taken from configs/config.json ("paths" block),
     # resolved relative to the repo root:

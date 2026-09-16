@@ -74,13 +74,39 @@ Trained on Google Colab with **Python 3.12** and **Ultralytics YOLOv8 8.4.82**
 ```bash
 git clone https://github.com/SimmchenGroup/PolyVision.git
 cd PolyVision
-python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install torch torchvision ultralytics scikit-learn numpy pandas \
-            matplotlib opencv-python pillow tqdm PyQt5 dvc
+conda env create -f environment.yml && conda activate PhD   # Python 3.13 + requirements.txt
 ```
+
+Or without conda: `python -m venv .venv`, activate it, then `pip install -r requirements.txt`.
+`requirements.txt` pins CUDA 12.8 builds of PyTorch; on a CPU-only machine install
+`torch`/`torchvision` from <https://pytorch.org/get-started/locally/> first.
 
 The nine classes and their fixed **alphabetical** index order (nylon=0 … pvc=8) are
 defined in `configs/config.json` and used consistently everywhere.
+
+---
+
+## Running the annotation app
+
+Only the GUI, `configs/`, and your own model weights + images are needed — no
+training code or DVC setup.
+
+1. **Models** — place the weights where `configs/config.json` → `models` points
+   (or edit those paths):
+   ```
+   models/detect/best.pt                          # YOLO detector
+   models/local/EfficientNetB0/best_model.keras   # optional, fusion only
+   models/global/EfficientNetB0/best_model.keras  # optional, fusion only
+   ```
+   If `best.pt` is missing the app still starts; YOLO proposals are disabled and
+   Otsu/adaptive thresholding + manual boxes are used instead. Fusion is disabled
+   automatically when the classifier weights are absent.
+2. **Images** — drop `.tif` micrographs into `paths.input_dir` (default `data/raw`).
+   Annotations are written under `paths.output_root`.
+3. **Launch** from the repo root:
+   ```bash
+   python -m polyvision.app.main
+   ```
 
 ---
 
