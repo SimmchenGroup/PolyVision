@@ -35,19 +35,20 @@ from PyQt5.QtWidgets import (
     QFileDialog, QVBoxLayout, QHBoxLayout, QProgressBar, QSpinBox, QMessageBox,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QCheckBox, QSlider, QComboBox,
     QDockWidget, QGraphicsTextItem, QGraphicsRectItem, QGridLayout, QSizePolicy, QListWidget,
-    QListWidgetItem, QDialog, QGroupBox, QFrame, QScrollArea, QButtonGroup, QToolButton
+    QListWidgetItem, QDialog, QGroupBox, QFrame, QScrollArea, QButtonGroup, QToolButton,
+    QMenu, QDialogButtonBox
 )
 from PyQt5.QtGui import (
     QPixmap, QImage, QKeySequence, QPen, QBrush, QColor, QPainter, QCursor, QFont,
-    QPolygonF, QKeyEvent, QIcon
+    QPolygonF, QKeyEvent, QIcon, QDesktopServices
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QRectF, QPointF, QSize, QEvent
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QRectF, QPointF, QSize, QEvent, QUrl
 import pyqtgraph as pg
 
 from polyvision.ml.fusion import ParticleFusionClassifier, fuse_predictions
 from polyvision.ml.local_classifier import LocalParticleClassifier
 from polyvision.ml.global_classifier import GlobalImageClassifier
-from configs.load import load_json, load_microplastic_classes
+from configs.load import load_json, load_config, config_path, load_microplastic_classes
 from polyvision.ml.yolo_detector import YoloDetector, prepare_for_yolo
 from polyvision.core.image_io import load_as_gray, ensure_8bit
 from polyvision.core.geometry import square_bbox, bbox_iou_rc
@@ -90,7 +91,7 @@ def yolo_detect(img_gray, conf=0.25, classes=None):
     if yolo_model is None:
         raise RuntimeError(
             "YOLO detection requested but no detector weights are loaded "
-            "(see models.yolo_weights in configs/config.json)."
+            "(load one from the Models button)."
         )
 
     img_8 = ensure_8bit(img_gray)
@@ -1154,15 +1155,285 @@ class ToggleSwitch(QCheckBox):
 # === INTERACTIVE PREVIEW WINDOW ===
 # ---------------------------------------------------------------------
 
+class ModelPathsDialog(QDialog):
+    """
+    Enter the three model paths. The detector (YOLO .pt) is required to load;
+    the local and global classifiers (.keras) are optional and only used
+    together, for fusion.
+    """
+
+    ROWS = [
+        ("yolo", "Detection (YOLO .pt)", "required", "YOLO weights (*.pt);;All files (*)"),
+        ("local", "Local classifier (.keras)", "optional", "Keras models (*.keras *.h5);;All files (*)"),
+        ("global", "Global classifier (.keras)", "optional", "Keras models (*.keras *.h5);;All files (*)"),
+    ]
+
+    def __init__(self, paths: dict, parent=None):
+        """Build the form, pre-filled with `paths` ({yolo, local, global})."""
+        super().__init__(parent)
+        self.setWindowTitle("Models")
+        self.setMinimumWidth(620)
+        self.edits = {}
+
+        lay = QVBoxLayout(self)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        for r, (key, label, req, filt) in enumerate(self.ROWS):
+            name = QLabel(label)
+            tag = QLabel(req)
+            tag.setObjectName("muted")
+            edit = QLineEdit(str(paths.get(key) or ""))
+            edit.setPlaceholderText("path to weights file")
+            edit.textChanged.connect(self._validate)
+            browse = QPushButton("Browse…")
+            browse.clicked.connect(lambda _=False, e=edit, t=label, f=filt: self._browse(e, t, f))
+            grid.addWidget(name, r, 0)
+            grid.addWidget(tag, r, 1)
+            grid.addWidget(edit, r, 2)
+            grid.addWidget(browse, r, 3)
+            self.edits[key] = edit
+        grid.setColumnStretch(2, 1)
+        lay.addLayout(grid)
+
+        note = QLabel("Fusion is enabled only when both the local and global classifiers are given.")
+        note.setObjectName("muted")
+        note.setWordWrap(True)
+        lay.addWidget(note)
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+        lay.addWidget(self.status)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.button(QDialogButtonBox.Ok).setText("Load models")
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        lay.addWidget(self.buttons)
+        self._validate()
+
+    def _browse(self, edit: QLineEdit, title: str, filt: str):
+        """Pick a model file for one row."""
+        start = edit.text().strip() or ""
+        f, _ = QFileDialog.getOpenFileName(self, title, start, filt)
+        if f:
+            edit.setText(f)
+
+    def _validate(self):
+        """Enable 'Load models' only when the detector exists and any optional path given exists."""
+        problems = []
+        det = self.edits["yolo"].text().strip()
+        if not det:
+            problems.append("Detection model is required.")
+        elif not Path(det).is_file():
+            problems.append("Detection model file not found.")
+        for key in ("local", "global"):
+            p = self.edits[key].text().strip()
+            if p and not Path(p).is_file():
+                problems.append(f"{key.capitalize()} classifier file not found.")
+        self.status.setText("\n".join(problems))
+        self.buttons.button(QDialogButtonBox.Ok).setEnabled(not problems)
+
+    def paths(self) -> dict:
+        """Return the entered paths as {yolo, local, global} ('' when blank)."""
+        return {k: e.text().strip() for k, e in self.edits.items()}
+
+
+class ClassEditorDialog(QDialog):
+    """
+    Edit the label classes (e.g. switch from polymers to "dog" / "cat").
+
+    Class ids are the row order (0..N-1), which is what the YOLO label files
+    and the classifiers expect; "Auto (model)" (-1) is always kept and is not
+    listed here. Names can be renamed in place (double-click), reordered by
+    drag or the Up/Down buttons, taken from the loaded detection model, or
+    saved to / loaded from a small JSON file.
+    """
+
+    def __init__(self, names: list, model_names: list | None = None, parent=None):
+        """Build the editor pre-filled with `names`; `model_names` enables the import button."""
+        super().__init__(parent)
+        self.setWindowTitle("Edit classes")
+        self.setMinimumSize(380, 420)
+        self.model_names = list(model_names or [])
+
+        lay = QVBoxLayout(self)
+        hint = QLabel("Class id = position in the list. Double-click a class to rename it; drag to reorder.")
+        hint.setObjectName("muted")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+
+        self.list = QListWidget()
+        self.list.setDragDropMode(QListWidget.InternalMove)
+        self.list.model().rowsMoved.connect(self._renumber)
+        self.list.itemChanged.connect(self._renumber)
+        lay.addWidget(self.list, 1)
+
+        add_row = QHBoxLayout()
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("New class name")
+        self.name_edit.returnPressed.connect(self._add)
+        add_btn = QPushButton("Add")
+        add_btn.clicked.connect(self._add)
+        add_row.addWidget(self.name_edit, 1)
+        add_row.addWidget(add_btn)
+        lay.addLayout(add_row)
+
+        edit_row = QHBoxLayout()
+        for text, slot in (("Remove", self._remove), ("Up", lambda: self._move(-1)),
+                           ("Down", lambda: self._move(1)), ("Clear all", self.list.clear)):
+            b = QPushButton(text)
+            b.clicked.connect(slot)
+            edit_row.addWidget(b)
+        lay.addLayout(edit_row)
+
+        io_row = QHBoxLayout()
+        self.from_model_btn = QPushButton("From detection model")
+        self.from_model_btn.setEnabled(bool(self.model_names))
+        self.from_model_btn.setToolTip(
+            "Use the class names stored in the loaded YOLO weights" if self.model_names
+            else "Load a detection model first (Models button)")
+        self.from_model_btn.clicked.connect(lambda: self._set_names(self.model_names))
+        load_btn = QPushButton("Load…")
+        load_btn.clicked.connect(self._load)
+        save_btn = QPushButton("Save…")
+        save_btn.clicked.connect(self._save)
+        io_row.addWidget(self.from_model_btn)
+        io_row.addStretch()
+        io_row.addWidget(load_btn)
+        io_row.addWidget(save_btn)
+        lay.addLayout(io_row)
+
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+        lay.addWidget(self.status)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.buttons.button(QDialogButtonBox.Ok).setText("Apply")
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        lay.addWidget(self.buttons)
+
+        self.list.model().rowsRemoved.connect(self._renumber)
+        self._set_names(names)
+
+    # ---- list editing ----
+    def _make_item(self, name: str) -> QListWidgetItem:
+        """Create an editable, draggable list row."""
+        item = QListWidgetItem(name)
+        item.setFlags(item.flags() | Qt.ItemIsEditable | Qt.ItemIsDragEnabled)
+        return item
+
+    def _set_names(self, names):
+        """Replace the list with `names`."""
+        self.list.blockSignals(True)
+        self.list.clear()
+        for n in names:
+            self.list.addItem(self._make_item(str(n)))
+        self.list.blockSignals(False)
+        self._renumber()
+
+    def _add(self):
+        """Append the name typed in the box."""
+        name = self.name_edit.text().strip()
+        if not name:
+            return
+        self.list.addItem(self._make_item(name))
+        self.list.setCurrentRow(self.list.count() - 1)
+        self.name_edit.clear()
+        self._renumber()
+
+    def _remove(self):
+        """Remove the selected class."""
+        row = self.list.currentRow()
+        if row >= 0:
+            self.list.takeItem(row)
+            self._renumber()
+
+    def _move(self, step: int):
+        """Move the selected class up (-1) or down (+1)."""
+        row = self.list.currentRow()
+        new = row + step
+        if row < 0 or not (0 <= new < self.list.count()):
+            return
+        item = self.list.takeItem(row)
+        self.list.insertItem(new, item)
+        self.list.setCurrentRow(new)
+        self._renumber()
+
+    def _renumber(self, *_):
+        """Show 'id — name' tooltips and validate names (non-empty, unique)."""
+        names = self.names()
+        problems = []
+        if not names:
+            problems.append("Add at least one class.")
+        if any(not n for n in names):
+            problems.append("Class names cannot be empty.")
+        dupes = sorted({n for n in names if n and names.count(n) > 1})
+        if dupes:
+            problems.append(f"Duplicate names: {', '.join(dupes)}")
+        if self.model_names and names and len(names) != len(self.model_names):
+            problems.append(f"Note: the loaded detection model has {len(self.model_names)} classes; "
+                            f"its predictions will not line up with {len(names)} here.")
+        for i in range(self.list.count()):
+            self.list.item(i).setToolTip(f"id {i}")
+        self.status.setText("\n".join(problems))
+        blocking = [p for p in problems if not p.startswith("Note:")]
+        self.buttons.button(QDialogButtonBox.Ok).setEnabled(not blocking)
+
+    def names(self) -> list:
+        """Current class names in id order."""
+        return [self.list.item(i).text().strip() for i in range(self.list.count())]
+
+    # ---- save / load ----
+    def _load(self):
+        """Load names from a JSON class list or a PolyVision config file."""
+        f, _ = QFileDialog.getOpenFileName(self, "Load classes", "", "JSON (*.json);;All files (*)")
+        if not f:
+            return
+        try:
+            with open(f, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if isinstance(data, list):
+                names = data
+            elif isinstance(data.get("classes"), list):
+                names = data["classes"]
+            else:  # config format: {"classes": {"items": [{"id", "name"}, ...]}}
+                items = sorted(data["classes"]["items"], key=lambda it: int(it["id"]))
+                names = [it["name"] for it in items if int(it["id"]) >= 0]
+        except Exception as e:
+            QMessageBox.warning(self, "Could not load classes", f"{f}\n\n{e}")
+            return
+        self._set_names([str(n) for n in names])
+
+    def _save(self):
+        """Save the names to a JSON class list ({"classes": [...]})."""
+        f, _ = QFileDialog.getSaveFileName(self, "Save classes", "classes.json", "JSON (*.json)")
+        if not f:
+            return
+        with open(f, "w", encoding="utf-8") as fh:
+            json.dump({"classes": self.names()}, fh, indent=2)
+
+
 class ImagePreview(QMainWindow):
-    def __init__(self, img_paths, output_root, raw_out, object_class_id=1,
+    def __init__(self, img_paths=None, output_root=None, raw_out=None, object_class_id=1,
                  use_yolo=False, min_area=50, parent=None,
                  enable_fusion=False, local_model_path=None, global_model_path=None,
                  fusion_weights=(0.3, 0.5, 0.2),
                  microplastic_classes=None,
                  yolo_detector: YoloDetector | None = None,
-                 dataset_root=None):
-        """Build the main annotation window and load the first image."""
+                 dataset_root=None,
+                 default_paths: dict | None = None,
+                 model_paths: dict | None = None,
+                 model_device: str = "cpu",
+                 model_imgsz: int = 800):
+        """
+        Build the main annotation window.
+
+        Every path is optional: with no input/output folders the canvas shows a
+        placeholder until they are chosen from the top bar, and models can be
+        loaded later from the Models dialog. default_paths ({input_dir,
+        output_root, raw_out}) and model_paths ({yolo, local, global}) only
+        pre-fill those menus/dialogs; nothing is loaded from them automatically.
+        """
         super().__init__(parent)
         self.object_class_id = object_class_id
         self.dataset_root = Path(dataset_root) if dataset_root is not None else None
@@ -1172,10 +1443,23 @@ class ImagePreview(QMainWindow):
         # NEW: lightweight debug toggle (keep True while diagnosing)
         self.fusion_debug = True
 
-        # Image state
-        self.img_paths = img_paths
-        self.output_root = Path(output_root)
-        self.raw_out = Path(raw_out)
+        # Image state (folders may be unset until chosen from the top bar)
+        self.img_paths = list(img_paths or [])
+        self.output_root = Path(output_root) if output_root else None
+        self.raw_out = Path(raw_out) if raw_out else None
+        self.default_paths = dict(default_paths or {})
+
+        # Model paths shown in the Models dialog; only the detector is needed
+        # for YOLO proposals, local + global are both needed for fusion.
+        self.model_paths = {"yolo": "", "local": "", "global": ""}
+        self.model_paths.update({k: str(v) for k, v in (model_paths or {}).items() if v})
+        if local_model_path:
+            self.model_paths["local"] = str(local_model_path)
+        if global_model_path:
+            self.model_paths["global"] = str(global_model_path)
+        self.model_device = model_device
+        self.model_imgsz = int(model_imgsz)
+        self.fusion_weights = tuple(fusion_weights)
         self.current_idx = 0
         self.current_img_gray = None
         self.img_name = ""
@@ -1201,7 +1485,7 @@ class ImagePreview(QMainWindow):
         self.object_bright = True
         self.adaptive_block_size = 21
         self.yolo_detector = yolo_detector
-        self.num_classes = len([cid for cid, _name in (microplastic_classes or []) if int(cid) >= 0]) or 7
+        self.num_classes = len([cid for cid, _name in (microplastic_classes or []) if int(cid) >= 0]) or 9
 
         # --- Productivity mode state ---
         self.productivity_enabled = False
@@ -1408,7 +1692,7 @@ class ImagePreview(QMainWindow):
         self.yolo_conf_slider.valueChanged.connect(self.on_yolo_conf_changed)
 
         if not self.yolo_available:
-            _no_yolo_tip = "Detector weights not found — see models.yolo_weights in configs/config.json"
+            _no_yolo_tip = "No detection model loaded — use the Models button in the top bar"
             self.yolo_checkbox.setEnabled(False)
             self.yolo_checkbox.setToolTip(_no_yolo_tip)
             self.yolo_conf_slider.setEnabled(False)
@@ -1429,29 +1713,13 @@ class ImagePreview(QMainWindow):
         self.class_list.setSelectionMode(QListWidget.SingleSelection)
         self.class_list.setMaximumHeight(220)
 
-        self.class_definitions = microplastic_classes if microplastic_classes else [
-            (-1, "Auto (model)"),
-            (0, "Nylon"),
-            (1, "PE"),
-            (2, "PET"),
-            (3, "PLA"),
-            (2, "PMMA"),
-            (3, "PP"),
-            (4, "PS"),
-            (5, "PU"),
-            (6, "PVC"),
-        ]
-
-        for class_id, name in self.class_definitions:
-            item = QListWidgetItem(f"{class_id} — {name}" if class_id >= 0 else name)
-            item.setData(Qt.UserRole, class_id)
-            if class_id >= 0:
-                item.setIcon(self._dot_icon(CLASS_OVERLAY_PALETTE[class_id % len(CLASS_OVERLAY_PALETTE)]))
-            self.class_list.addItem(item)
-
-        self.class_list.setCurrentRow(0)
-        self.object_class_id = -1
+        self.class_definitions = microplastic_classes if microplastic_classes else load_microplastic_classes({})
+        self._populate_class_list()
         self.class_list.currentItemChanged.connect(self.on_class_changed)
+
+        self.edit_classes_btn = QPushButton("Edit classes…")
+        self.edit_classes_btn.setToolTip("Add, remove, rename or reorder the label classes")
+        self.edit_classes_btn.clicked.connect(self.on_edit_classes)
 
         self.assign_class_btn = QPushButton("Assign to box")
         self.assign_class_btn.clicked.connect(self.on_assign_class_to_selected_bbox)
@@ -1466,6 +1734,7 @@ class ImagePreview(QMainWindow):
         cls_btn_row.addWidget(self.assign_class_btn)
         cls_btn_row.addWidget(self.clear_class_btn)
         cls_lay.addLayout(cls_btn_row)
+        cls_lay.addWidget(self.edit_classes_btn)
 
         # ---------------- LEFT PANEL: Sample context card ----------------
         self.context_combo = QComboBox()
@@ -1581,6 +1850,14 @@ class ImagePreview(QMainWindow):
         self.log_label = QLabel("Awaiting: (no image loaded)", self.right_preview_view)
         self.log_label.setObjectName("logChip")
         self.log_label.move(10, 10)
+
+        # Black placeholder covering the canvas until input + output folders are set.
+        self.canvas_placeholder = QLabel(self.right_preview_view)
+        self.canvas_placeholder.setAlignment(Qt.AlignCenter)
+        self.canvas_placeholder.setWordWrap(True)
+        self.canvas_placeholder.setStyleSheet(
+            "background-color:#000000; color:#8a8f98; font-size:14px; padding:24px;"
+        )
 
         # Canvas toolbar
         canvas_toolbar = QWidget()
@@ -1727,11 +2004,47 @@ class ImagePreview(QMainWindow):
         tb.addWidget(app_title)
         tb.addWidget(app_subtitle)
 
-        self.folder_btn = QPushButton("Open folder  ▾")
-        self.folder_btn.setObjectName("iconbtn")
-        self.folder_btn.setCursor(Qt.PointingHandCursor)
-        self.folder_btn.clicked.connect(self.on_pick_folder)
-        tb.addWidget(self.folder_btn)
+        # Folder dropdowns: input (raw micrographs), crops out (output_root),
+        # whole images out (raw_out). Each opens a small menu.
+        def _dropdown(tooltip):
+            b = QPushButton()
+            b.setObjectName("iconbtn")
+            b.setCursor(Qt.PointingHandCursor)
+            b.setToolTip(tooltip)
+            b.setStyleSheet("QPushButton::menu-indicator { image: none; width: 0px; }")
+            m = QMenu(b)
+            b.setMenu(m)
+            tb.addWidget(b)
+            return b, m
+
+        self.folder_btn, in_menu = _dropdown("Input folder: raw micrographs to annotate")
+        in_menu.addAction("Choose input folder…", self.on_pick_folder)
+        self._in_default_action = in_menu.addAction("Use config input_dir", self._use_default_input)
+        in_menu.addSeparator()
+        in_menu.addAction("Show in file explorer", lambda: self._reveal(self.working_folder))
+
+        self.out_btn, out_menu = _dropdown("Crops out: particle crops + labels (output_root)")
+        out_menu.addAction("Choose folder…", lambda: self._pick_output("output_root"))
+        self._out_default_action = out_menu.addAction("Use default", lambda: self._use_default_output("output_root"))
+        out_menu.addSeparator()
+        out_menu.addAction("Show in file explorer", lambda: self._reveal(self.output_root))
+
+        self.raw_btn, raw_menu = _dropdown("Whole images out: annotated images are moved here (raw_out)")
+        raw_menu.addAction("Choose folder…", lambda: self._pick_output("raw_out"))
+        self._raw_default_action = raw_menu.addAction("Use default", lambda: self._use_default_output("raw_out"))
+        raw_menu.addSeparator()
+        raw_menu.addAction("Show in file explorer", lambda: self._reveal(self.raw_out))
+
+        # Menus refresh their "Use default" labels each time they open.
+        for m in (in_menu, out_menu, raw_menu):
+            m.aboutToShow.connect(self._refresh_folder_menus)
+
+        self.models_btn = QPushButton("Models")
+        self.models_btn.setObjectName("iconbtn")
+        self.models_btn.setCursor(Qt.PointingHandCursor)
+        self.models_btn.setToolTip("Set detection / local / global model paths")
+        self.models_btn.clicked.connect(self.on_models_clicked)
+        tb.addWidget(self.models_btn)
 
         tb.addStretch()
 
@@ -1847,49 +2160,15 @@ class ImagePreview(QMainWindow):
         self.bbox_items = []
         self.text_items = []
 
-        if self.img_paths:
-            self.load_current_image()
-
-        self.use_fusion = False
+        self.local_clf = self.global_clf = self.fusion_clf = None
         if enable_fusion and local_model_path and global_model_path:
-            try:
-                self.local_clf = LocalParticleClassifier(
-                    model_path=local_model_path,  # ← Now passed as parameter
-                    num_classes=self.num_classes,
-                    device="cpu"
-                )
-                self.global_clf = GlobalImageClassifier(
-                    model_path=global_model_path,  # ← Now passed as parameter
-                    num_classes=self.num_classes,
-                    device="cpu"
-                )
-                self.fusion_clf = ParticleFusionClassifier(
-                    weights=fusion_weights,  # ← Now passed as parameter
-                    num_classes=self.num_classes,
-                    use_meta_model=False
-                )
-                self.use_fusion = True
-
-                self.fusion_checkbox.setEnabled(True)
-                self.use_fusion_active = True
-                self.fusion_checkbox.setChecked(True)
-
-                print("✓ Fusion classifiers loaded successfully")
-                print(f"   Local model: {local_model_path}")
-                print(f"   Global model: {global_model_path}")
-                print(f"   Fusion weights: {fusion_weights}")
-            except Exception as e:
-                print(f"⚠ Fusion disabled: {e}")
-                self.use_fusion = False
-                self.use_fusion_active = False
-                self.fusion_checkbox.setEnabled(False)
-                self.fusion_checkbox.setChecked(False)
+            self._load_fusion(local_model_path, global_model_path)
         elif enable_fusion:
             print("⚠ Fusion disabled: Missing model paths")
-            self.use_fusion = False
-            self.use_fusion_active = False
-            self.fusion_checkbox.setEnabled(False)
-            self.fusion_checkbox.setChecked(False)
+        self._refresh_models_btn()
+
+        # Load the first image if every folder was supplied, else show the placeholder.
+        self._apply_folders()
 
         # Force an initial update after the event loop runs
         QTimer.singleShot(50, self.update_display)
@@ -1979,9 +2258,9 @@ class ImagePreview(QMainWindow):
             return
         total = len(self.img_paths)
         self.filename_label.setText(self.img_name or "—")
-        self.imgpos_label.setText(f"Image {self.current_idx + 1} of {total}")
-        if total > 0:
-            self.top_progress.setValue(int((self.current_idx + 1) / total * 100))
+        shown = self.current_idx + 1 if (total and self.current_img_gray is not None) else 0
+        self.imgpos_label.setText(f"Image {shown} of {total}")
+        self.top_progress.setValue(int(shown / total * 100) if total else 0)
         self._refresh_triage_badge()
 
     # ---- tool tabs (drive the existing draw/delete checkboxes) ----
@@ -2056,33 +2335,245 @@ class ImagePreview(QMainWindow):
         fit = getattr(self.right_preview_view, "_fit_scale", 1.0) or 1.0
         self.zoom_label.setText(f"{int(round(scale / fit * 100))}%")
 
-    # ---- working-folder picker ----
+    # ---- folder dropdowns (input / crops out / whole images out) ----
+    IMAGE_EXTS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
+
     def on_pick_folder(self):
-        """Choose the working (raw images) folder."""
-        start = str(self.working_folder) if self.working_folder else ""
-        d = QFileDialog.getExistingDirectory(self, "Open working folder", start)
-        if not d:
-            return
-        folder = Path(d)
-        exts = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
+        """Choose the input (raw images) folder."""
+        start = str(self.working_folder or self.default_paths.get("input_dir") or "")
+        d = QFileDialog.getExistingDirectory(self, "Choose input folder", start)
+        if d:
+            self._set_input_folder(Path(d))
+
+    def _use_default_input(self):
+        """Use the input_dir from the config file."""
+        d = self.default_paths.get("input_dir")
+        if d:
+            self._set_input_folder(Path(d))
+
+    def _set_input_folder(self, folder: Path) -> bool:
+        """Scan `folder` for images and make it the working folder."""
+        if not folder.is_dir():
+            QMessageBox.warning(self, "Folder not found", f"Folder does not exist:\n{folder}")
+            return False
         imgs = triage_sort(sorted(
-            [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in exts]
+            [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in self.IMAGE_EXTS]
         ))
         if not imgs:
             QMessageBox.warning(self, "No images", f"No images found in:\n{folder}")
-            return
+            return False
         self.working_folder = folder
         self.img_paths = imgs
         self.current_idx = 0
-        self.cached_binaries.clear()
-        self.cached_regions.clear()
-        self.cached_yolo.clear()
-        self.cached_scaled_img.clear()
-        self.cached_yolo_by_class.clear()
-        self.folder_btn.setText(f"{folder.name}  ▾")
-        self._needs_fit = True
-        self.load_current_image()
+        self.current_img_gray = None  # force a reload in _apply_folders
+        self._apply_folders()
         self.statusBar().showMessage(f"Opened {folder} — {len(imgs)} images")
+        return True
+
+    def _default_output(self, which: str) -> Path | None:
+        """Default for an output folder: the config value, else a subfolder of the input."""
+        if self.default_paths.get(which):
+            return Path(self.default_paths[which])
+        if self.working_folder is None:
+            return None
+        return self.working_folder / ("crops" if which == "output_root" else "whole_images")
+
+    def _pick_output(self, which: str):
+        """Choose the crops (output_root) or whole-image (raw_out) folder."""
+        title = "Choose crops output folder" if which == "output_root" else "Choose whole-image output folder"
+        current = getattr(self, which) or self._default_output(which) or self.working_folder or ""
+        d = QFileDialog.getExistingDirectory(self, title, str(current))
+        if d:
+            self._set_output(which, Path(d))
+
+    def _use_default_output(self, which: str):
+        """Set an output folder to its default location."""
+        d = self._default_output(which)
+        if d is None:
+            QMessageBox.information(self, "Choose input first",
+                                    "The default output is inside the input folder — choose an input folder first.")
+            return
+        self._set_output(which, d)
+
+    def _set_output(self, which: str, folder: Path):
+        """Create and assign an output folder ("output_root" or "raw_out")."""
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            QMessageBox.warning(self, "Cannot create folder", f"{folder}\n\n{e}")
+            return
+        setattr(self, which, folder)
+        self._apply_folders()
+        label = "Crops" if which == "output_root" else "Whole images"
+        self.statusBar().showMessage(f"{label} → {folder}")
+
+    def _reveal(self, folder):
+        """Open a folder in the system file explorer."""
+        if folder and Path(folder).exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _refresh_folder_menus(self):
+        """Update the 'Use default' menu entries with their resolved paths."""
+        d_in = self.default_paths.get("input_dir")
+        self._in_default_action.setEnabled(bool(d_in))
+        self._in_default_action.setText(
+            f"Use config input_dir  ({d_in})" if d_in else "Use config input_dir  (not set)")
+        for which, act in (("output_root", self._out_default_action), ("raw_out", self._raw_default_action)):
+            d = self._default_output(which)
+            act.setEnabled(d is not None)
+            act.setText(f"Use default  ({d})" if d else "Use default  (choose input first)")
+
+    def _folders_ready(self) -> bool:
+        """True once there are images to annotate and both output folders are set."""
+        return bool(self.img_paths) and self.output_root is not None and self.raw_out is not None
+
+    def _apply_folders(self):
+        """Refresh the folder buttons; load the current image or show the placeholder."""
+        def _label(prefix, path):
+            return f"{prefix}: {Path(path).name or path}  ▾" if path else f"{prefix}: not set  ▾"
+
+        in_dir = self.working_folder or (self.img_paths[0].parent if self.img_paths else None)
+        for b, prefix, path in ((self.folder_btn, "Input", in_dir),
+                                (self.out_btn, "Crops out", self.output_root),
+                                (self.raw_btn, "Whole out", self.raw_out)):
+            b.setText(_label(prefix, path))
+            if path:
+                b.setToolTip(str(path))
+
+        if self._folders_ready():
+            self.canvas_placeholder.hide()
+            if self.current_img_gray is None:
+                self.cached_binaries.clear()
+                self.cached_regions.clear()
+                self.cached_yolo.clear()
+                self.cached_scaled_img.clear()
+                self.cached_yolo_by_class.clear()
+                self._needs_fit = True
+                self.load_current_image()
+            return
+
+        # Not ready: blank the canvas and list what is still missing.
+        self.current_img_gray = None
+        self.img_name = ""
+        self.right_pix.setPixmap(QPixmap())
+        for it in self.bbox_items + self.text_items:
+            if it.scene() is not None:
+                it.scene().removeItem(it)
+        self.bbox_items, self.text_items = [], []
+        missing = []
+        if not self.img_paths:
+            missing.append("Input  (raw micrographs)")
+        if self.output_root is None:
+            missing.append("Crops out  (particle crops + labels)")
+        if self.raw_out is None:
+            missing.append("Whole out  (annotated whole images)")
+        self.canvas_placeholder.setText(
+            "Set the folders in the top bar to start annotating:\n\n"
+            + "\n".join(f"•  {m}" for m in missing)
+            + "\n\nModels are optional — load them from the Models button."
+        )
+        self.canvas_placeholder.show()
+        self.canvas_placeholder.raise_()
+        self._position_log_chip()
+        self._refresh_topbar()
+
+    def _invalidate_current_binary(self):
+        """Drop the cached mask/regions for the current image (no-op with no images)."""
+        if not self.img_paths:
+            return
+        key = self.img_paths[self.current_idx]
+        self.cached_binaries.pop(key, None)
+        self.cached_regions.pop(key, None)
+
+    # ---- models dialog ----
+    def on_models_clicked(self):
+        """Open the Models dialog and (re)load the chosen models."""
+        dlg = ModelPathsDialog(self.model_paths, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            self._load_models(dlg.paths())
+        finally:
+            QApplication.restoreOverrideCursor()
+
+    def _load_models(self, paths: dict):
+        """Load the detector (required) and, if both are given, the fusion classifiers."""
+        global yolo_model
+        try:
+            detector = YoloDetector(model_path=paths["yolo"], device=self.model_device, imgsz=self.model_imgsz)
+            # Inference goes through the module-level yolo_detect() helper.
+            yolo_model = YOLO(paths["yolo"])
+        except Exception as e:
+            QMessageBox.critical(self, "Detection model failed to load", f"{paths['yolo']}\n\n{e}")
+            return
+        self.model_paths = dict(paths)
+        self.yolo_detector = detector
+        self.yolo_available = True
+        self.cached_yolo.clear()
+        self.cached_yolo_by_class.clear()
+        for w in (self.yolo_checkbox, self.yolo_conf_slider):
+            w.setEnabled(True)
+            w.setToolTip("")
+
+        msgs = [f"Detector: {Path(paths['yolo']).name}"]
+        if paths.get("local") and paths.get("global"):
+            msgs.append("fusion ready" if self._load_fusion(paths["local"], paths["global"])
+                        else "fusion failed (see console)")
+        else:
+            self._disable_fusion()
+            if paths.get("local") or paths.get("global"):
+                msgs.append("fusion needs both local and global models")
+        self._refresh_models_btn()
+
+        # Switch YOLO on (on_yolo_toggled redraws); if already on, redraw now.
+        if self.yolo_checkbox.isChecked():
+            self._invalidate_current_binary()
+            self.update_display()
+        else:
+            self.yolo_checkbox.setChecked(True)
+        self.statusBar().showMessage(" · ".join(msgs))
+
+    def _load_fusion(self, local_model_path, global_model_path) -> bool:
+        """Load the local + global classifiers and enable the fusion toggle."""
+        try:
+            self.local_clf = LocalParticleClassifier(
+                model_path=str(local_model_path), num_classes=self.num_classes, device="cpu")
+            self.global_clf = GlobalImageClassifier(
+                model_path=str(global_model_path), num_classes=self.num_classes, device="cpu")
+            self.fusion_clf = ParticleFusionClassifier(
+                weights=self.fusion_weights, num_classes=self.num_classes, use_meta_model=False)
+        except Exception as e:
+            print(f"⚠ Fusion disabled: {e}")
+            self._disable_fusion()
+            return False
+        self.use_fusion = True
+        self.fusion_checkbox.setEnabled(True)
+        self.use_fusion_active = True
+        self.fusion_checkbox.setChecked(True)
+        print("✓ Fusion classifiers loaded successfully")
+        print(f"   Local model: {local_model_path}")
+        print(f"   Global model: {global_model_path}")
+        print(f"   Fusion weights: {self.fusion_weights}")
+        return True
+
+    def _disable_fusion(self):
+        """Turn fusion off and grey out its toggle."""
+        self.use_fusion = False
+        self.use_fusion_active = False
+        self.fusion_checkbox.blockSignals(True)
+        self.fusion_checkbox.setChecked(False)
+        self.fusion_checkbox.blockSignals(False)
+        self.fusion_checkbox.setEnabled(False)
+
+    def _refresh_models_btn(self):
+        """Summarise which models are loaded on the Models button."""
+        if not self.yolo_available:
+            self.models_btn.setText("Models: none")
+        elif self.use_fusion:
+            self.models_btn.setText("Models: det + fusion")
+        else:
+            self.models_btn.setText("Models: det")
 
     # ---- canvas toolbar toggles ----
     def on_binary_mask_toggled(self, state):
@@ -2148,6 +2639,8 @@ class ImagePreview(QMainWindow):
         vp = self.right_preview_view.viewport()
         self.log_label.move(10, max(10, vp.height() - self.log_label.height() - 10))
         self.log_label.raise_()
+        if hasattr(self, "canvas_placeholder"):
+            self.canvas_placeholder.setGeometry(self.right_preview_view.rect())
 
     def resizeEvent(self, event):
         """Re-fit the preview and reposition overlays on resize."""
@@ -2457,10 +2950,7 @@ class ImagePreview(QMainWindow):
         if hasattr(self, "thresh_value_label"):
             self.thresh_value_label.setText(str(val))
         # Invalidate cache
-        key = self.img_paths[self.current_idx]
-        if key in self.cached_binaries:
-            del self.cached_binaries[key]
-        self.cached_regions.pop(key, None)
+        self._invalidate_current_binary()
         self.update_display()
 
     def on_otsu_input(self):
@@ -2469,10 +2959,7 @@ class ImagePreview(QMainWindow):
             val = int(self.otsu_input.text())
             self.otsu_offset = val
             self.otsu_slider.setValue(val)
-            key = self.img_paths[self.current_idx]
-            if key in self.cached_binaries:
-                del self.cached_binaries[key]
-            self.cached_regions.pop(key, None)
+            self._invalidate_current_binary()
             self.update_display()
         except ValueError:
             self.otsu_input.setText(str(self.otsu_offset))
@@ -2482,10 +2969,7 @@ class ImagePreview(QMainWindow):
         self.method = text
         self._sync_method_buttons()
         # Invalidate cache for current image
-        key = self.img_paths[self.current_idx]
-        if key in self.cached_binaries:
-            del self.cached_binaries[key]
-        self.cached_regions.pop(key, None)
+        self._invalidate_current_binary()
         self.update_display()
 
     def on_yolo_toggled(self, state):
@@ -2497,10 +2981,7 @@ class ImagePreview(QMainWindow):
             self.use_yolo = False
             return
         self.use_yolo = state == Qt.Checked
-        key = self.img_paths[self.current_idx]
-        if key in self.cached_binaries:
-            del self.cached_binaries[key]
-        self.cached_regions.pop(key, None)
+        self._invalidate_current_binary()
 
         if not self.use_yolo and hasattr(self, "fusion_checkbox"):
             self.use_fusion_active = False
@@ -2515,9 +2996,8 @@ class ImagePreview(QMainWindow):
         self.yolo_conf = round(val / 100.0, 2)
         self.yolo_conf_label.setText(f"{self.yolo_conf:.2f}")
         # Invalidate YOLO cache so results are re-run at the new threshold
-        key = self.img_paths[self.current_idx]
-        if key in self.cached_yolo:
-            del self.cached_yolo[key]
+        if self.img_paths:
+            self.cached_yolo.pop(self.img_paths[self.current_idx], None)
         self.cached_yolo_by_class.clear()
         self.update_display()
 
@@ -2648,6 +3128,51 @@ class ImagePreview(QMainWindow):
             self._break_bonus = 0.0
         elif dlg.got_break is False:
             self._break_bonus += self._break_bonus_step
+
+    def _populate_class_list(self):
+        """Fill the Object class list from self.class_definitions and select Auto."""
+        self.class_list.blockSignals(True)
+        self.class_list.clear()
+        for class_id, name in self.class_definitions:
+            item = QListWidgetItem(f"{class_id} — {name}" if class_id >= 0 else name)
+            item.setData(Qt.UserRole, class_id)
+            if class_id >= 0:
+                item.setIcon(self._dot_icon(CLASS_OVERLAY_PALETTE[class_id % len(CLASS_OVERLAY_PALETTE)]))
+            self.class_list.addItem(item)
+        self.class_list.setCurrentRow(0)
+        self.class_list.blockSignals(False)
+        self.object_class_id = -1
+
+    def on_edit_classes(self):
+        """Open the class editor and apply the new class list."""
+        names = [name for cid, name in sorted(self.class_definitions) if int(cid) >= 0]
+        model_names = []
+        if yolo_model is not None:
+            mn = getattr(yolo_model, "names", None) or {}
+            model_names = [mn[k] for k in sorted(mn)] if isinstance(mn, dict) else list(mn)
+        dlg = ClassEditorDialog(names, model_names, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        self._set_classes(dlg.names())
+
+    def _set_classes(self, names: list):
+        """Replace the label classes with `names` (ids 0..N-1, plus Auto = -1)."""
+        old_count = self.num_classes
+        self.class_definitions = [(-1, "Auto (model)")] + list(enumerate(names))
+        self.num_classes = len(names)
+        self._populate_class_list()
+
+        # Manual per-box labels may now point at ids that no longer exist.
+        self.bbox_manual_class = {k: v for k, v in self.bbox_manual_class.items() if v < self.num_classes}
+
+        # Classifiers were built for a fixed number of outputs.
+        msg = f"Classes: {', '.join(names)}"
+        if self.use_fusion and self.num_classes != old_count:
+            self._disable_fusion()
+            self._refresh_models_btn()
+            msg += "  ·  fusion disabled (classifiers were trained on a different class count)"
+        self.statusBar().showMessage(msg)
+        self.update_display()
 
     def on_class_changed(self, current, previous):
         """Handle the active annotation class changing."""
@@ -3392,7 +3917,7 @@ class ImagePreview(QMainWindow):
             # Try to resolve from config
             try:
                 repo_root = find_repo_root(Path(__file__))
-                cfg = load_json(repo_root / "configs" / "config.json")
+                cfg = load_config()
                 dr = cfg.get("paths", {}).get("dataset_root", "data/complete")
                 dataset_root = resolve_repo_path(repo_root, dr)
             except Exception:
@@ -3423,6 +3948,10 @@ class ImagePreview(QMainWindow):
     # -------------------- Keyboard navigation --------------------
     def keyPressEvent(self, event):
         """Keyboard shortcuts: accept (Enter), skip (Escape), adjust params, switch tools."""
+        # Nothing to act on until the folders are set and an image is loaded.
+        if self.current_img_gray is None:
+            super().keyPressEvent(event)
+            return
         key = event.key()
 
         # -------------------- YOLO confidence adjustment --------------------
@@ -3886,10 +4415,9 @@ def main() -> int:
     """Launch the annotation application: load config-driven paths and run the PyQt event loop."""
     repo_root = Path(__file__).resolve().parents[3]  # PolyVision/ (adjust if needed)
 
-    config_path = repo_root / "configs" / "config.json"
     colors_path = repo_root / "configs" / "gui_colors.json"
 
-    config = load_json(config_path)
+    config = load_config()
     microplastic_classes = load_microplastic_classes(config)
 
     app = QApplication(sys.argv)
@@ -3949,111 +4477,58 @@ if __name__ == "__main__":
     import sys
     from PyQt5.QtWidgets import QApplication
 
-    # Load configuration first; model/data paths all come from configs/config.json.
+    # The app opens with nothing loaded: input/output folders are chosen from
+    # the top-bar dropdowns and models from the Models dialog. The active config
+    # (configs/config.json, or POLYVISION_CONFIG) only supplies defaults that
+    # pre-fill those menus — it is optional.
     repo_root = find_repo_root(Path(__file__))
-
-    # Detector used by the module-level yolo_detect() helper. The path is resolved
-    # from config ("models.yolo"/"models.yolo_weights") relative to the repo root.
-    with open(repo_root / "configs" / "config.json", "r", encoding="utf-8") as _cf:
-        _models_cfg = json.load(_cf).get("models", {})
-    # Missing weights are not fatal: yolo_model stays None and every YOLO-driven
-    # feature is disabled, leaving Otsu/adaptive annotation fully usable.
-    YOLO_MODEL_PATH = str(resolve_repo_path(
-        repo_root, _models_cfg.get("yolo") or _models_cfg.get("yolo_weights", "models/detect/best.pt")))
-    yolo_model = YOLO(YOLO_MODEL_PATH) if Path(YOLO_MODEL_PATH).exists() else None
-
-    with open(repo_root / "configs" / "config.json", "r", encoding="utf-8") as f:
-        config = json.load(f)
+    try:
+        config = load_config()
+        print(f"[config] {config_path()}")
+    except FileNotFoundError as e:
+        print(f"[config] none ({e}); using built-in defaults")
+        config = {}
 
     microplastic_classes = load_microplastic_classes(config)
-
     models_cfg = config.get("models", {})
-
-    yolo_weights_path = resolve_repo_path(repo_root, models_cfg["yolo_weights"])
-    local_model_path = resolve_repo_path(repo_root, models_cfg.get("local_classifier", ""))
-    global_model_path = resolve_repo_path(repo_root, models_cfg.get("global_classifier", ""))
-
-    print(f"[paths] repo_root        = {repo_root}")
-    print(f"[paths] yolo_weights     = {yolo_weights_path}")
-    print(f"[paths] local_classifier = {local_model_path}")
-    print(f"[paths] global_classifier= {global_model_path}")
-
-    yolo_available = yolo_weights_path.exists()
-    if not yolo_available:
-        print(f"⚠ YOLO disabled: detector weights not found: {yolo_weights_path}")
-        print("  Annotation still works via Otsu/adaptive thresholding and manual boxes.")
-
-    # Optional but recommended: sanity checks before enabling fusion
-    enable_fusion = bool(models_cfg.get("enable_fusion", False))
-    if enable_fusion and not yolo_available:
-        print("⚠ Fusion disabled: it needs the YOLO detector.")
-        enable_fusion = False
-    if enable_fusion:
-        if not local_model_path.exists():
-            print(f"⚠ Fusion disabled: local model not found: {local_model_path}")
-            enable_fusion = False
-        elif local_model_path.suffix.lower() != ".keras":
-            print(f"⚠ Fusion disabled: local model is not a .keras file: {local_model_path}")
-            enable_fusion = False
-
-        if not global_model_path.exists():
-            print(f"⚠ Fusion disabled: global model not found: {global_model_path}")
-            enable_fusion = False
-        elif global_model_path.suffix.lower() != ".keras":
-            print(f"⚠ Fusion disabled: global model is not a .keras file: {global_model_path}")
-            enable_fusion = False
-
-    yolo_detector = YoloDetector(
-        model_path=str(yolo_weights_path),
-        device=models_cfg.get("device", "cpu"),
-        imgsz=int(models_cfg.get("imgsz", 800)),
-    ) if yolo_available else None
-
-    # Input / output folders are taken from configs/config.json ("paths" block),
-    # resolved relative to the repo root:
-    #   input_dir  = raw micrographs to annotate      (default: data/raw)
-    #   output_root = where crops + labels are written (default: data/complete/<class>)
-    #   raw_out     = where the whole image is moved   (default: <output_root>/whole_images)
     paths_cfg = config.get("paths", {})
-    input_dir = resolve_repo_path(repo_root, paths_cfg.get("input_dir", "data/raw"))
-    exts = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".bmp"}
-    img_list = triage_sort(sorted([p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in exts])) if input_dir.exists() else []
-    if not img_list:
-        print(f"No image files found in {input_dir} (expected .tif/.tiff/.png/.jpg/.jpeg/.bmp)")
-        sys.exit(1)
 
-    output_root = resolve_repo_path(repo_root, paths_cfg.get("output_root", "data/complete"))
-    raw_out = resolve_repo_path(repo_root, paths_cfg.get("raw_out", str(output_root / "whole_images")))
-    output_root.mkdir(parents=True, exist_ok=True)
-    raw_out.mkdir(parents=True, exist_ok=True)
+    def _cfg_path(value):
+        """Resolve an optional config path (None when unset)."""
+        return str(resolve_repo_path(repo_root, value)) if value else None
 
-    # 4️⃣ Start PyQt5 application
+    # Defaults offered by the folder menus ("Use config input_dir" / "Use default").
+    default_paths = {
+        "input_dir": _cfg_path(paths_cfg.get("input_dir")),
+        "output_root": _cfg_path(paths_cfg.get("output_root")),
+        "raw_out": _cfg_path(paths_cfg.get("raw_out")),
+    }
+    # Pre-fill for the Models dialog (nothing is loaded until "Load models").
+    model_paths = {
+        "yolo": _cfg_path(models_cfg.get("yolo") or models_cfg.get("yolo_weights")),
+        "local": _cfg_path(models_cfg.get("local_classifier")),
+        "global": _cfg_path(models_cfg.get("global_classifier")),
+    }
+
     app = QApplication(sys.argv)
 
     # GUI redesign: theme-token driven stylesheet (dark by default). The window
     # itself re-applies this via ImagePreview.apply_theme() and the theme toggle.
     app.setStyleSheet(build_stylesheet(THEMES["dark"]))
 
-    # Resolve dataset root (data/complete) from config for the Dataset Reviewer
-    dataset_root = resolve_repo_path(
-        repo_root,
-        config.get("paths", {}).get("dataset_root", "data/complete"),
-    )
+    # Dataset root (data/complete) for the Dataset Reviewer
+    dataset_root = resolve_repo_path(repo_root, paths_cfg.get("dataset_root", "data/complete"))
 
-    # 5️⃣ Launch interactive preview directly
     previewer = ImagePreview(
-        img_paths=img_list,
-        output_root=output_root,
-        raw_out=raw_out,
-        use_yolo=config["processing"]["use_yolo"],
-        min_area=config["processing"]["min_area"],
-        enable_fusion=enable_fusion,
-        local_model_path=str(local_model_path) if enable_fusion else None,
-        global_model_path=str(global_model_path) if enable_fusion else None,
-        fusion_weights=tuple(config["fusion"]["weights"]),
+        use_yolo=config.get("processing", {}).get("use_yolo", False),
+        min_area=config.get("processing", {}).get("min_area", 50),
+        fusion_weights=tuple(config.get("fusion", {}).get("weights", (0.3, 0.5, 0.2))),
         microplastic_classes=microplastic_classes,
-        yolo_detector=yolo_detector,
         dataset_root=dataset_root,
+        default_paths=default_paths,
+        model_paths=model_paths,
+        model_device=models_cfg.get("device", "cpu"),
+        model_imgsz=int(models_cfg.get("imgsz", 800)),
     )
     previewer.show()
 
