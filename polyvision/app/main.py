@@ -1218,23 +1218,33 @@ class ModelPathsDialog(QDialog):
             edit.setText(f)
 
     def _validate(self):
-        """Enable 'Load models' only when the detector exists and any optional path given exists."""
-        problems = []
+        """Enable 'Load models' once the detector exists; missing optional files only warn."""
+        errors, notes = [], []
         det = self.edits["yolo"].text().strip()
         if not det:
-            problems.append("Detection model is required.")
+            errors.append("Detection model is required.")
         elif not Path(det).is_file():
-            problems.append("Detection model file not found.")
+            errors.append(f"Detection model file not found: {det}")
         for key in ("local", "global"):
             p = self.edits[key].text().strip()
             if p and not Path(p).is_file():
-                problems.append(f"{key.capitalize()} classifier file not found.")
-        self.status.setText("\n".join(problems))
-        self.buttons.button(QDialogButtonBox.Ok).setEnabled(not problems)
+                notes.append(f"{key.capitalize()} classifier not found — it will be skipped: {p}")
+        given = [k for k in ("local", "global") if self._existing(k)]
+        if len(given) == 1:
+            notes.append("Fusion needs both local and global — only the detector will be used.")
+        self.status.setText("\n".join(errors + notes))
+        self.status.setStyleSheet(f"color: {'#ff6b6b' if errors else '#e5a50a'};")
+        self.buttons.button(QDialogButtonBox.Ok).setEnabled(not errors)
+
+    def _existing(self, key: str) -> str:
+        """The path entered for `key` if it is an existing file, else ''."""
+        p = self.edits[key].text().strip()
+        return p if p and Path(p).is_file() else ""
 
     def paths(self) -> dict:
-        """Return the entered paths as {yolo, local, global} ('' when blank)."""
-        return {k: e.text().strip() for k, e in self.edits.items()}
+        """Return {yolo, local, global}; optional paths that don't exist come back as ''."""
+        return {"yolo": self.edits["yolo"].text().strip(),
+                "local": self._existing("local"), "global": self._existing("global")}
 
 
 class ClassEditorDialog(QDialog):
